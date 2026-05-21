@@ -15,24 +15,28 @@ pipeline {
     parameters {
         booleanParam(name: 'SKIP_TESTS', defaultValue: true, description: 'Skip tests during CI build.')
         booleanParam(name: 'DEPLOY_TO_NEXUS', defaultValue: false, description: 'Deploy Maven artifact to Nexus.')
+        booleanParam(name: 'DEPLOY_DOCKER', defaultValue: false, description: 'Build Docker image and restart the app container.')
+        string(name: 'DOCKER_IMAGE_NAME', defaultValue: 'lingolens', description: 'Docker image name used on the Jenkins agent.')
+        string(name: 'DOCKER_HOST_PORT', defaultValue: '18080', description: 'Host port mapped to container port 8080.')
     }
 
     environment {
         MAVEN_REPO_LOCAL = '.m2/repository'
         NEXUS_CREDENTIALS_ID = 'nexus-admin'
+        APP_CONTAINER_NAME = 'lingolens-app'
+        APP_CONTAINER_PORT = '8080'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                echo '【核心修复】正在通过强力稳定的 SSH 加密隧道拉取背词 App 源码...'
-                // 💥 丢弃盲目的 checkout scm，强行指定 SSH 链接与你新建的“凭据”
+                echo 'Checking out LingoLens source code...'
                 checkout([$class: 'GitSCM',
                     branches: [[name: '*/main']],
                     extensions: [],
                     userRemoteConfigs: [[
-                        credentialsId: 'git-ssh-auth', // 👈 精准命中你新建的凭据
-                        url: 'git@github.com:hatsune-hitsuzi/LingoLens.git' // 👈 强行走 22 端口
+                        credentialsId: 'git-ssh-auth',
+                        url: 'git@github.com:hatsune-hitsuzi/LingoLens.git'
                     ]]
                 ])
             }
@@ -76,6 +80,30 @@ pipeline {
                     script {
                         removeFile('settings-ci.xml')
                     }
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            when {
+                expression { return params.DEPLOY_DOCKER }
+            }
+            steps {
+                echo 'Building Docker image...'
+                script {
+                    dockerBuild()
+                }
+            }
+        }
+
+        stage('Docker Deploy') {
+            when {
+                expression { return params.DEPLOY_DOCKER }
+            }
+            steps {
+                echo 'Deploying Docker container...'
+                script {
+                    dockerDeploy()
                 }
             }
         }
@@ -130,4 +158,63 @@ void removeFile(String path) {
     } else {
         bat "if exist ${path} del /f /q ${path}"
     }
+}
+
+String dockerImageTag() {
+    return "${dockerImageName()}:${env.BUILD_NUMBER}"
+}
+
+String dockerImageName() {
+    return params.DOCKER_IMAGE_NAME.trim().toLowerCase()
+}
+
+String dockerHostPort() {
+    return params.DOCKER_HOST_PORT.trim()
+}
+
+void validateDockerConfig() {
+    String imageName = dockerImageName()
+    String hostPort = dockerHostPort()
+    if (!(imageName ==~ /^[a-z0-9][a-z0-9._\/-]{0,127}$/)) {
+        error("Invalid DOCKER_IMAGE_NAME: ${imageName}")
+    }
+    if (!(hostPort ==~ /^[0-9]{1,5}$/)) {
+        error("Invalid DOCKER_HOST_PORT: ${hostPort}")
+    }
+    Integer port = hostPort as Integer
+    if (port < 1 || port > 65535) {
+        error("DOCKER_HOST_PORT is out of range: ${hostPort}")
+    }
+}
+
+void dockerBuild() {
+    if (!isUnix()) {
+        error('Docker deploy requires a Linux Jenkins agent.')
+    }
+    validateDockerConfig()
+    String image = dockerImageTag()
+    String imageName = dockerImageName()
+    sh """
+        docker build --pull -t ${image} -t ${imageName}:latest .
+    """
+}
+
+void dockerDeploy() {
+    if (!isUnix()) {
+        error('Docker deploy requires a Linux Jenkins agent.')
+    }
+    validateDockerConfig()
+    String image = dockerImageTag()
+    String hostPort = dockerHostPort()
+    sh """
+        docker stop ${env.APP_CONTAINER_NAME} >/dev/null 2>&1 || true
+        docker rm ${env.APP_CONTAINER_NAME} >/dev/null 2>&1 || true
+        docker run -d \\
+            --name ${env.APP_CONTAINER_NAME} \\
+            --restart unless-stopped \\
+            -p ${hostPort}:${env.APP_CONTAINER_PORT} \\
+            -e TZ=Asia/Shanghai \\
+            ${image}
+        docker ps --filter "name=${env.APP_CONTAINER_NAME}"
+    """
 }
