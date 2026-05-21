@@ -25,8 +25,16 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                echo 'Checking out source code...'
-                checkout scm
+                echo '【核心修复】正在通过强力稳定的 SSH 加密隧道拉取背词 App 源码...'
+                // 💥 丢弃盲目的 checkout scm，强行指定 SSH 链接与你新建的“凭据”
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        credentialsId: 'git-ssh-auth', // 👈 精准命中你新建的凭据
+                        url: 'git@github.com:hatsune-hitsuzi/LingoLens.git' // 👈 强行走 22 端口
+                    ]]
+                ])
             }
         }
 
