@@ -140,12 +140,21 @@ public class UserAccountServiceImpl implements UserAccountService {
         if (request.getAvatarUrl() != null) {
             request.setAvatarUrl(request.getAvatarUrl().trim());
         }
+        if (request.getEmail() != null) {
+            request.setEmail(request.getEmail().trim().toLowerCase());
+        }
+        if (request.getBio() != null) {
+            request.setBio(request.getBio().trim());
+        }
     }
 
     private void validateProfileUpdateRequest(UserProfileUpdateRequest request) {
         Assert.notNull(request, "profile update request must not be null");
-        Assert.isTrue(StringUtils.hasText(request.getNickname()) || StringUtils.hasText(request.getAvatarUrl()),
-                "nickname or avatar url must not be blank");
+        Assert.isTrue(StringUtils.hasText(request.getNickname())
+                        || StringUtils.hasText(request.getAvatarUrl())
+                        || StringUtils.hasText(request.getEmail())
+                        || request.getBio() != null,
+                "nickname, avatar url, email or bio must not be blank");
         if (request.getNickname() != null) {
             Assert.hasText(request.getNickname(), "nickname must not be blank");
             Assert.isTrue(request.getNickname().length() >= 2 && request.getNickname().length() <= 32,
@@ -154,6 +163,9 @@ public class UserAccountServiceImpl implements UserAccountService {
         }
         if (request.getAvatarUrl() != null) {
             Assert.hasText(request.getAvatarUrl(), "avatar url must not be blank");
+        }
+        if (request.getEmail() != null) {
+            Assert.hasText(request.getEmail(), "email must not be blank");
         }
     }
 
@@ -180,6 +192,8 @@ public class UserAccountServiceImpl implements UserAccountService {
                 .userId(user.getUserId())
                 .nickname(user.getNickname())
                 .avatarUrl(user.getAvatarUrl())
+                .email(user.getEmail())
+                .bio(user.getBio())
                 .build();
     }
 

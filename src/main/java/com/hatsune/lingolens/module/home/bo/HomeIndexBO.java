@@ -50,6 +50,21 @@ public class HomeIndexBO {
     private String currentBookName;
 
     /**
+     * 今日目标单词数。
+     */
+    private Integer dailyGoalWordCount;
+
+    /**
+     * 今日已完成单词数。
+     */
+    private Integer todayFinishedWordCount;
+
+    /**
+     * AR 扫描词本总词数。
+     */
+    private Integer scannedWordCount;
+
+    /**
      * 今日学习任务是否已完成。
      */
     private Boolean todayFinished;

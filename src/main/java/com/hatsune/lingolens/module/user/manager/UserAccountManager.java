@@ -42,11 +42,19 @@ public class UserAccountManager {
                 throw new BizException("nickname already exists");
             }
         }
+        if (StringUtils.hasText(request.getEmail())) {
+            UserDO emailUser = userMapper.selectOne(UserDO.builder().email(request.getEmail()).build());
+            if (emailUser != null && !id.equals(emailUser.getId())) {
+                throw new BizException("email already exists");
+            }
+        }
 
         UserDO updateUser = UserDO.builder()
                 .id(id)
                 .nickname(StringUtils.hasText(request.getNickname()) ? request.getNickname() : null)
                 .avatarUrl(StringUtils.hasText(request.getAvatarUrl()) ? request.getAvatarUrl() : null)
+                .email(StringUtils.hasText(request.getEmail()) ? request.getEmail() : null)
+                .bio(request.getBio() != null ? request.getBio() : null)
                 .updateTime(OffsetDateTime.now())
                 .build();
         userMapper.updateByPrimaryKey(updateUser);
@@ -55,6 +63,8 @@ public class UserAccountManager {
                 .userId(currentUser.getUserId())
                 .nickname(StringUtils.hasText(updateUser.getNickname()) ? updateUser.getNickname() : currentUser.getNickname())
                 .avatarUrl(StringUtils.hasText(updateUser.getAvatarUrl()) ? updateUser.getAvatarUrl() : currentUser.getAvatarUrl())
+                .email(StringUtils.hasText(updateUser.getEmail()) ? updateUser.getEmail() : currentUser.getEmail())
+                .bio(updateUser.getBio() != null ? updateUser.getBio() : currentUser.getBio())
                 .build();
     }
 

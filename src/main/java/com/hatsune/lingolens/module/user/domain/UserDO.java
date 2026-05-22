@@ -47,6 +47,18 @@ public class UserDO {
     private String avatarUrl;
 
     /**
+     * 用户邮箱。
+     */
+    @TableField("email")
+    private String email;
+
+    /**
+     * 用户个人简介。
+     */
+    @TableField("bio")
+    private String bio;
+
+    /**
      * BCrypt 加密后的登录密码密文。
      */
     @TableField("password_hash")

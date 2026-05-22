@@ -45,6 +45,16 @@ public class HomeIndexResponse {
     private String avatarUrl;
 
     /**
+     * 用户邮箱。
+     */
+    private String email;
+
+    /**
+     * 用户个人简介。
+     */
+    private String bio;
+
+    /**
      * 今日计划新学单词数。
      */
     private Integer todayNewWordCount;
@@ -68,6 +78,21 @@ public class HomeIndexResponse {
      * 当前学习词库名称。
      */
     private String currentBookName;
+
+    /**
+     * 今日目标单词数。
+     */
+    private Integer dailyGoalWordCount;
+
+    /**
+     * 今日已完成单词数。
+     */
+    private Integer todayFinishedWordCount;
+
+    /**
+     * AR 扫描词本总词数。
+     */
+    private Integer scannedWordCount;
 
     /**
      * 今日学习任务是否已完成。

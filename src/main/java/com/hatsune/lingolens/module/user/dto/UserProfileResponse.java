@@ -40,4 +40,14 @@ public class UserProfileResponse {
      * 用户头像资源 URL。
      */
     private String avatarUrl;
+
+    /**
+     * 用户邮箱。
+     */
+    private String email;
+
+    /**
+     * 用户个人简介。
+     */
+    private String bio;
 }

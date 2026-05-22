@@ -11,7 +11,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @MapperScan({
         "com.hatsune.lingolens.module.user.mapper",
         "com.hatsune.lingolens.module.wordbook.mapper",
-        "com.hatsune.lingolens.module.admin.mapper"
+        "com.hatsune.lingolens.module.admin.mapper",
+        "com.hatsune.lingolens.module.memorypalace.mapper"
 })
 @SpringBootApplication
 public class LingoLensApplication {
