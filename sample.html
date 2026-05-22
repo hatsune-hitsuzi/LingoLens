@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>闪念物语 App UI 交互原型</title>
+    <style>
+        :root {
+            /* 浅色模式原生 Apple 规范 */
+            --bg-main: #F5F5F7;
+            --bg-card: #FFFFFF;
+            --text-main: #1D1D1F;
+            --text-sub: #86868B;
+            --divider: #E5E5EA;
+            --accent-blue: #0071E3;
+            --accent-pink: #FF2D55;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-blur: blur(20px) saturate(180%);
+            --phone-border: #E3E3E3;
+        }
+
+        [data-theme="dark"] {
+            /* 暗黑模式原生 OLED 纯黑规范 */
+            --bg-main: #000000;
+            --bg-card: #1C1C1E;
+            --text-main: #F5F5F7;
+            --text-sub: #86868B;
+            --divider: #2C2C2E;
+            --accent-blue: #0A84FF;
+            --accent-pink: #FF375F;
+            --glass-bg: rgba(28, 28, 30, 0.7);
+            --glass-blur: blur(20px) saturate(180%);
+            --phone-border: #2C2C2E;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", sans-serif;
+            -webkit-font-smoothing: antialiased;
+            transition: background 0.3s, color 0.3s, border-color 0.3s;
+        }
+
+        body {
+            background-color: #0B0B0C;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            color: #FFFFFF;
+        }
+
+        /* 全局中置标题和模式切换栏 */
+        .header-bar {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .header-bar h1 {
+            font-size: 20px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            color: #F5F5F7;
+        }
+        .theme-switcher {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            border: none;
+            color: #F5F5F7;
+        }
+
+        /* 硬件层：仿 iPhone 16 Pro 机身外壳 */
+        .phone-container {
+            width: 393px;
+            height: 852px;
+            background: var(--bg-main);
+            border: 11px solid #1A1A1A;
+            border-radius: 55px;
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 灵动岛 (Dynamic Island) */
+        .dynamic-island {
+            width: 110px;
+            height: 30px;
+            background: #000000;
+            border-radius: 20px;
+            position: absolute;
+            top: 11px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+        }
+
+        /* 界面视窗主容器 */
+        .screen {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: none;
+        }
+        .screen.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ==================== 1. 登录页面 ==================== */
+        .login-screen {
+            padding: 100px 32px 40px 32px;
+            justify-content: space-between;
+        }
+        .login-slogan {
+            font-size: 22px;
+            font-weight: 300;
+            color: var(--text-main);
+            letter-spacing: 2px;
+            margin-top: 40px;
+        }
+        .login-form {
+            margin-top: -100px;
+        }
+        .input-group {
+            margin-bottom: 32px;
+            position: relative;
+        }
+        .input-group input {
+            width: 100%;
+            border: none;
+            border-bottom: 0.5px solid var(--divider);
+            background: transparent;
+            padding: 8px 0;
+            font-size: 16px;
+            color: var(--text-main);
+            outline: none;
+        }
+        .input-group input::placeholder {
+            color: var(--text-sub);
+            font-weight: 300;
+        }
+        .login-btn {
+            width: 100%;
+            height: 50px;
+            border-radius: 25px;
+            border: none;
+            background: var(--text-main);
+            color: var(--bg-main);
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        /* ==================== 2. 主页面 ==================== */
+        .home-screen {
+            padding: 60px 24px 40px 24px;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .home-top {
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .avatar-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 0.5px solid var(--divider);
+            cursor: pointer;
+            object-fit: cover;
+        }
+        .home-quote-box {
+            text-align: center;
+            padding: 0 16px;
+            margin-top: 40px;
+        }
+        .quote-en {
+            font-size: 14px;
+            font-style: italic;
+            color: var(--text-main);
+            line-height: 1.6;
+            margin-bottom: 12px;
+            font-family: "Playfair Display", Georgia, serif;
+        }
+        .quote-zh {
+            font-size: 12px;
+            color: var(--text-sub);
+            letter-spacing: 1px;
+        }
+        .scan-trigger-container {
+            margin-bottom: 120px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .scan-halo {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--text-main);
+            opacity: 0.06;
+            position: absolute;
+            animation: breathe 3s infinite ease-in-out;
+        }
+        .scan-btn {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            background: var(--text-main);
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 2;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .scan-btn svg {
+            width: 28px;
+            height: 28px;
+            fill: var(--bg-main);
+        }
+
+        @keyframes breathe {
+            0% { transform: scale(1); opacity: 0.05; }
+            50% { transform: scale(1.3); opacity: 0.12; }
+            100% { transform: scale(1); opacity: 0.05; }
+        }
+
+        /* ==================== 3. AR 扫描界面 ==================== */
+        .ar-screen {
+            background: url('https://images.unsplash.com/photo-1517256064527-09c53b2d0c6b?auto=format&fit=crop&q=80&w=600') center center no-repeat;
+            background-size: cover;
+        }
+        .ar-overlay {
+            flex: 1;
+            background: rgba(0,0,0,0.15);
+            position: relative;
+            padding-top: 60px;
+        }
+        .ar-island-pill {
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 6px 16px;
+            border-radius: 20px;
+            width: fit-content;
+            margin: 0 auto;
+            color: #FFFFFF;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        /* AR 漂浮物件标签气泡 */
+        .ar-bubble {
+            position: absolute;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            padding: 8px 14px;
+            border-radius: 18px;
+            color: var(--text-main);
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            cursor: pointer;
+            animation: float 4s infinite ease-in-out;
+            border: 0.5px solid rgba(255,255,255,0.2);
+        }
+        .ar-bubble::before {
+            content: '';
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: var(--text-main);
+            border-radius: 50%;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .bubble-mug { top: 380px; left: 140px; }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* 单词释义弹窗卡片 */
+        .def-card {
+            position: absolute;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            height: 38%;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border-radius: 30px 30px 0 0;
+            padding: 24px;
+            transition: bottom 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            color: var(--text-main);
+            z-index: 10;
+            border-top: 0.5px solid rgba(255,255,255,0.2);
+        }
+        .def-card.active {
+            bottom: 0;
+        }
+        .card-handle {
+            width: 36px;
+            height: 5px;
+            background: var(--text-sub);
+            opacity: 0.3;
+            border-radius: 2.5px;
+            margin: -12px auto 20px auto;
+            cursor: pointer;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .word-title-group {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+        .word-text { font-size: 26px; font-weight: 600; }
+        .word-audio { font-size: 14px; color: var(--text-sub); cursor: pointer; }
+        .favorite-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        .favorite-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: var(--text-main);
+            stroke-width: 2;
+            transition: transform 0.2s, fill 0.2s, stroke 0.2s;
+        }
+        .favorite-btn.liked svg {
+            fill: var(--accent-pink);
+            stroke: var(--accent-pink);
+            transform: scale(1.15);
+        }
+        .card-example {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-main);
+            background: rgba(128,128,128,0.06);
+            padding: 12px;
+            border-radius: 12px;
+        }
+        .card-example span {
+            display: block;
+            font-size: 12px;
+            color: var(--text-sub);
+            margin-top: 4px;
+        }
+
+        /* ==================== 4. 个人页面 ==================== */
+        .profile-screen {
+            padding: 60px 16px 40px 16px;
+            overflow-y: auto;
+        }
+        /* 用户简况头部 */
+        .u-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 8px 24px 8px;
+        }
+        .u-avatar {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .u-info h2 { font-size: 19px; font-weight: 600; color: var(--text-main); margin-bottom: 2px;}
+        .u-info p { font-size: 12px; color: var(--text-sub); font-weight: 300;}
+
+        /* 记忆曲线环形进度条卡片 */
+        .ebbinghaus-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+        .progress-box {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .circle-svg {
+            width: 52px;
+            height: 52px;
+            transform: rotate(-90deg);
+        }
+        .circle-bg {
+            fill: none;
+            stroke: var(--divider);
+            stroke-width: 4.5;
+        }
+        .circle-line {
+            fill: none;
+            stroke: var(--accent-blue);
+            stroke-width: 4.5;
+            stroke-linecap: round;
+            stroke-dasharray: 144;
+            stroke-dashoffset: 110; /* 计算占比模拟阻尼 */
+        }
+        .progress-text h3 { font-size: 15px; font-weight: 500; color: var(--text-main); margin-bottom: 2px;}
+        .progress-text p { font-size: 11px; color: var(--text-sub); }
+        .badge-streak {
+            text-align: right;
+        }
+        .badge-tag {
+            font-size: 11px;
+            font-weight: 500;
+            background: rgba(128,128,128,0.08);
+            color: var(--text-main);
+            padding: 4px 10px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+
+        /* 苹果经典分组列表规范 (Rounded Corner Grouped List) */
+        .list-group {
+            background: var(--bg-card);
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+        .list-item {
+            width: 100%;
+            padding: 14px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            outline: none;
+            text-align: left;
+        }
+        .list-item:not(:last-child) {
+            border-bottom: 0.5px solid var(--divider);
+        }
+        .item-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+        .item-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-sub);
+        }
+        .arrow-icon {
+            width: 14px;
+            height: 14px;
+            fill: none;
+            stroke: var(--text-sub);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            opacity: 0.5;
+        }
+
+        /* ==================== 底部固定多维控制器 ==================== */
+        .hardware-nav-bar {
+            height: 54px;
+            background: var(--bg-card);
+            border-top: 0.5px solid var(--divider);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 999;
+        }
+        .nav-tab-btn {
+            background: none;
+            border: none;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-sub);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+        }
+        .nav-tab-btn.active {
+            color: var(--text-main);
+        }
+        .nav-tab-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: var(--text-sub);
+            stroke-width: 2;
+        }
+        .nav-tab-btn.active svg {
+            stroke: var(--text-main);
+        }
+        /* 主条 Home Indicator */
+        .home-indicator {
+            width: 140px;
+            height: 5px;
+            background: var(--text-main);
+            border-radius: 2.5px;
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body data-theme="light">
+
+<div class="header-bar">
+    <h1>闪念物语 App 原型模拟器</h1>
+    <button class="theme-switcher" onclick="toggleTheme()">切换至：暗黑模式</button>
+</div>
+
+<div class="phone-container">
+    <!-- 灵动岛 -->
+    <div class="dynamic-island"></div>
+
+    <!-- 1. 登录页面 -->
+    <div id="view-login" class="screen active login-screen">
+        <div class="login-slogan">遇见世界，<br>记住它。</div>
+        <div class="login-form">
+            <div class="input-group">
+                <input type="text" placeholder="手机号 / 账号" value="Yang">
+            </div>
+            <div class="input-group">
+                <input type="password" placeholder="请输入密码" value="••••••••">
+            </div>
+        </div>
+        <button class="login-btn" onclick="switchView('view-home')">登录</button>
+    </div>
+
+    <!-- 2. 主页面 -->
+    <div id="view-home" class="screen home-screen">
+        <div class="home-top">
+            <img src="http://159.75.140.18:9000/lingolens/4d22f3d3acf00cd7db0d0cb92cafc27.jpg?auto=format&fit=crop&q=80&w=150" class="avatar-btn" onclick="switchView('view-profile')" alt="头像">
+        </div>
+        <div class="home-quote-box">
+            <div class="quote-en">"The limits of my language mean the limits of my world."</div>
+            <div class="quote-zh">“语言的边界，即是世界的边界。”</div>
+        </div>
+        <div class="scan-trigger-container">
+            <div class="scan-halo"></div>
+            <button class="scan-btn" onclick="switchView('view-ar')">
+                <svg viewBox="0 0 24 24"><path d="M4 4h3V2H4c-1.1 0-2 .9-2 2v3h2V4zm16-2h-3v2h3v3h2V4c0-1.1-.9-2-2-2zm0 16h-3v2h3v-3h2v3c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2v-3h2v3h3v2H4zm0-10v8H4v-8h16zM12 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. AR 扫描界面 -->
+    <div id="view-ar" class="screen ar-screen">
+        <div class="ar-overlay" onclick="closeDefCard(event)">
+            <div class="ar-island-pill">
+                <span>🇨🇳 中</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                <span>🇬🇧 英</span>
+            </div>
+
+            <!-- 浮动的实景高斯模糊气泡 -->
+            <div class="ar-bubble bubble-mug" onclick="openDefCard(event)">
+                Mug /mʌɡ/
+            </div>
+
+            <!-- 精致释义弹窗 -->
+            <div id="def-card" class="def-card" onclick="event.stopPropagation()">
+                <div class="card-handle" onclick="hideCard()"></div>
+                <div class="card-header">
+                    <div class="word-title-group">
+                        <span class="word-text">Mug</span>
+                        <span class="word-audio" onclick="playAudio()">/mʌɡ/ 🔊</span>
+                    </div>
+                    <button id="fav-btn" class="favorite-btn" onclick="toggleLike()">
+                        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                    </button>
+                </div>
+                <div class="card-example">
+                    She filled her favorite mug with hot coffee.
+                    <span>她把最爱的马克杯倒满了热咖啡。</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 个人页面 (全面补齐并细化) -->
+    <div id="view-profile" class="screen profile-screen">
+        <div class="u-header">
+            <img src="http://159.75.140.18:9000/lingolens/4d22f3d3acf00cd7db0d0cb92cafc27.jpg?auto=format&fit=crop&q=80&w=150" class="u-avatar" alt="用户头像">
+            <div class="u-info">
+                <h2>Yang</h2>
+                <p>探索中，遇见语言的新边界</p>
+            </div>
+        </div>
+
+        <!-- 记忆曲线进度卡片 -->
+        <div class="ebbinghaus-card">
+            <div class="progress-box">
+                <svg class="circle-svg">
+                    <circle class="circle-bg" cx="26" cy="26" r="23"></circle>
+                    <circle class="circle-line" cx="26" cy="26" r="23"></circle>
+                </svg>
+                <div class="progress-text">
+                    <h3>12 / 50 词</h3>
+                    <p>今日记忆强化任务进度</p>
+                </div>
+            </div>
+            <div class="badge-streak">
+                <span class="badge-tag">✨ 连续打卡 18 天</span>
+            </div>
+        </div>
+
+        <!-- 分组卡片 1：核心词库数据 -->
+        <div class="list-group">
+            <button class="list-item">
+                <div class="item-left">📂 扫描生词本</div>
+                <div class="item-right">
+                    <span>128 个单词</span>
+                    <svg class="arrow-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+                </div>
+            </button>
+        </div>
+
+        <!-- 分组卡片 2：系统底层设置 -->
+        <div class="list-group">
+            <button class="list-item">
+                <div class="item-left">🌐 翻译语种切换</div>
+                <div class="item-right">
+                    <span>中 ➔ 英</span>
+                    <svg class="arrow-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+                </div>
+            </button>
+            <button class="list-item">
+                <div class="item-left">🌙 暗黑模式</div>
+                <div class="item-right">
+                    <span style="font-size: 11px; color: var(--text-sub);">跟随系统</span>
+                </div>
+            </button>
+            <button class="list-item">
+                <div class="item-left">⚙️ 账户与隐私安全</div>
+                <div class="item-right">
+                    <svg class="arrow-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- 底部硬件虚拟系统导航键 -->
+    <div class="hardware-nav-bar">
+        <button id="tab-login" class="nav-tab-btn active" onclick="switchView('view-login')">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5-4-8-4z"/></svg>
+            登录
+        </button>
+        <button id="tab-home" class="nav-tab-btn" onclick="switchView('view-home')">
+            <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            主页
+        </button>
+        <button id="tab-ar" class="nav-tab-btn" onclick="switchView('view-ar')">
+            <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
+            AR扫描
+        </button>
+        <button id="tab-profile" class="nav-tab-btn" onclick="switchView('view-profile')">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L12 15v5c.34 0 .67-.04 1-.07v-2.02c1.3-.35 2.28-1.39 2.6-2.71L12 11V9h5c.42 0 .82.14 1.15.4L19 8.28C17.72 5.17 14.62 3 11 3 6.58 3 3 6.58 3 11c0 3.76 2.61 6.92 6.13 7.74l1.37-1.37c-.32-.22-.61-.48-.87-.78l-1.41 1.41-.02-.02c-.39-.39-.39-1.02 0-1.41l3.54-3.54c.39-.39 1.02-.39 1.41 0l2.12 2.12c.39.39.39 1.02 0 1.41l-2.27 2.27c1.37.58 2.87.87 4.41.87v-2h-1v-1.24l-3-3V11h3v1.24l2 2V12c0-2.21-1.79-4-4-4H9v2h2v3.24l-3.54 3.54c-.1.1-.18.22-.24.35C8.36 18.23 9.63 19.34 11 19.73V20c0 .55.45 1 1 1s1-.45 1-1v-1.07z"/></svg>
+            个人中心
+        </button>
+    </div>
+
+    <!-- Home Indicator 线条 -->
+    <div class="home-indicator"></div>
+</div>
+
+<script>
+    // 核心页面切换逻辑
+    function switchView(viewId) {
+        // 隐藏所有页面
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('active');
+        });
+        // 激活目标页面
+        const targetScreen = document.getElementById(viewId);
+        if (targetScreen) targetScreen.classList.add('active');
+
+        // 同步更新下方硬件导航按钮高亮
+        document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        if (viewId === 'view-login') document.getElementById('tab-login').classList.add('active');
+        if (viewId === 'view-home') document.getElementById('tab-home').classList.add('active');
+        if (viewId === 'view-ar') document.getElementById('tab-ar').classList.add('active');
+        if (viewId === 'view-profile') document.getElementById('tab-profile').classList.add('active');
+    }
+
+    // 浅色/暗黑双模式一键切换
+    function toggleTheme() {
+        const body = document.body;
+        const btn = document.querySelector('.theme-switcher');
+        if (body.getAttribute('data-theme') === 'light') {
+            body.setAttribute('data-theme', 'dark');
+            btn.textContent = '切换至：浅色模式';
+        } else {
+            body.setAttribute('data-theme', 'light');
+            btn.textContent = '切换至：暗黑模式';
+        }
+    }
+
+    // AR 面板下的释义弹窗展开逻辑
+    function openDefCard(event) {
+        event.stopPropagation(); // 阻止向下冒泡关闭
+        document.getElementById('def-card').classList.add('active');
+    }
+
+    function closeDefCard(event) {
+        document.getElementById('def-card').classList.remove('active');
+    }
+
+    function hideCard() {
+        document.getElementById('def-card').classList.remove('active');
+    }
+
+    // 点赞/收藏微动画反馈
+    function toggleLike() {
+        const btn = document.getElementById('fav-btn');
+        btn.classList.toggle('liked');
+    }
+
+    // 声音播放反馈模拟
+    function playAudio() {
+        console.log("Playing pronunciation for 'Mug'...");
+    }
+</script>
+</body>
+</html>
