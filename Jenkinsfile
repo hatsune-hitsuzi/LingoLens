@@ -23,6 +23,7 @@ pipeline {
     environment {
         MAVEN_REPO_LOCAL = '.m2/repository'
         NEXUS_CREDENTIALS_ID = 'nexus-admin'
+        LLM_AUTHORIZATION_CREDENTIALS_ID = 'lingolens-llm-authorization'
         APP_CONTAINER_NAME = 'lingolens-app'
         APP_CONTAINER_PORT = '8080'
     }
@@ -206,15 +207,22 @@ void dockerDeploy() {
     validateDockerConfig()
     String image = dockerImageTag()
     String hostPort = dockerHostPort()
-    sh """
-        docker stop ${env.APP_CONTAINER_NAME} >/dev/null 2>&1 || true
-        docker rm ${env.APP_CONTAINER_NAME} >/dev/null 2>&1 || true
-        docker run -d \\
-            --name ${env.APP_CONTAINER_NAME} \\
-            --restart unless-stopped \\
-            -p ${hostPort}:${env.APP_CONTAINER_PORT} \\
-            -e TZ=Asia/Shanghai \\
-            ${image}
-        docker ps --filter "name=${env.APP_CONTAINER_NAME}"
-    """
+    withCredentials([string(
+            credentialsId: env.LLM_AUTHORIZATION_CREDENTIALS_ID,
+            variable: 'LINGOLENS_LLM_AUTHORIZATION'
+    )]) {
+        sh """
+            docker stop ${env.APP_CONTAINER_NAME} >/dev/null 2>&1 || true
+            docker rm ${env.APP_CONTAINER_NAME} >/dev/null 2>&1 || true
+            docker run -d \\
+                --name ${env.APP_CONTAINER_NAME} \\
+                --restart unless-stopped \\
+                -p ${hostPort}:${env.APP_CONTAINER_PORT} \\
+                -e TZ=Asia/Shanghai \\
+                -e LINGOLENS_LLM_ENABLED=true \\
+                -e LINGOLENS_LLM_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
+                ${image}
+            docker ps --filter "name=${env.APP_CONTAINER_NAME}"
+        """
+    }
 }
