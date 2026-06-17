@@ -5,8 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.OffsetDateTime;
-
 /**
  * @author hatsune_hitsuzi
  * @since 2026-05-23
@@ -26,6 +24,21 @@ public class MemoryPalaceWordItemDTO {
      * 记忆宫殿主键 ID。
      */
     private Long palaceId;
+
+    /**
+     * 全局单词资产主键 ID。
+     */
+    private Long wordAssetId;
+
+    private String slotKey;
+
+    private String slotName;
+
+    private String anchorDescription;
+
+    private Boolean imageOptimized;
+
+    private String imageUploadProvider;
 
     /**
      * 单词原文。
@@ -80,5 +93,5 @@ public class MemoryPalaceWordItemDTO {
     /**
      * 创建时间。
      */
-    private OffsetDateTime createTime;
+    private String createTime;
 }

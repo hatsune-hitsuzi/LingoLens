@@ -24,9 +24,13 @@
 | --- | --- | --- |
 | `result.rCode` | String | `0` 成功，`1` 失败 |
 | `result.msg` | String | 结果提示 |
-| `sourceLanguage` | String | 源语言编码，例如 `en` |
-| `targetLanguage` | String | 目标语言编码，例如 `ja`、`zh-CN` |
+| `sourceLanguage` | String | 学习源语言，例如 `zh-CN`、`ja`、`en` |
+| `targetLanguage` | String | 学习目标语言，例如 `en`、`ja`、`zh-CN` |
+| `languageDirection` | String | 学习方向，例如 `ja-en` |
+| `languageDirectionName` | String | 兼容旧客户端的展示文案，新客户端应使用本地 i18n 渲染 |
+| `uiLanguage` | String | App 界面语言，例如 `zh-CN`、`ja`、`en` |
 | `themeMode` | String | 主题模式：`system`、`light`、`dark` |
+| `languagePairs` | Array | 当前支持的学习语言方向列表 |
 
 ## 响应示例
 
@@ -36,8 +40,19 @@
     "rCode": "0",
     "msg": "success"
   },
-  "sourceLanguage": "en",
-  "targetLanguage": "ja",
-  "themeMode": "system"
+  "sourceLanguage": "ja",
+  "targetLanguage": "en",
+  "languageDirection": "ja-en",
+  "languageDirectionName": "日 -> 英",
+  "uiLanguage": "ja",
+  "themeMode": "system",
+  "languagePairs": [
+    {
+      "direction": "ja-en",
+      "sourceLanguage": "ja",
+      "targetLanguage": "en",
+      "label": "日 -> 英"
+    }
+  ]
 }
 ```

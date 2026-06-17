@@ -7,6 +7,8 @@ import com.hatsune.lingolens.common.mybatis.provider.BaseInsertProvider;
 import com.hatsune.lingolens.common.mybatis.provider.BaseSelectProvider;
 import com.hatsune.lingolens.common.mybatis.provider.BaseUpdateProvider;
 import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceWordDO;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceSearchWordDTO;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.DeleteProvider;
 import org.apache.ibatis.annotations.InsertProvider;
 import org.apache.ibatis.annotations.Mapper;
@@ -51,14 +53,61 @@ public interface MemoryPalaceWordMapper {
     int updateByPrimaryKey(MemoryPalaceWordDO entity);
 
     @Select("""
-            SELECT * FROM memory_palace_words
-            WHERE user_pk_id = #{userPkId}
-              AND palace_id = #{palaceId}
-            ORDER BY create_time DESC, id DESC
+            SELECT
+                word.id,
+                word.palace_id,
+                word.user_pk_id,
+                word.word_asset_id,
+                word.slot_key,
+                word.slot_name,
+                word.anchor_description,
+                word.image_optimized,
+                word.image_upload_provider,
+                word.source_image_url,
+                word.create_time,
+                word.update_time,
+                asset.word_key AS word_key,
+                asset.word_key AS word,
+                COALESCE(target_payload.payload ->> 'word', asset.canonical_word) AS display_word,
+                target_payload.payload ->> 'phonetic' AS phonetic,
+                COALESCE(asset.pronunciation_base_url, 'http://dict.youdao.com/dictvoice')
+                    || COALESCE(target_payload.payload ->> 'pronunciationPath', '') AS pronunciation_url,
+                target_payload.payload ->> 'pos' AS part_of_speech,
+                COALESCE(source_payload.payload ->> 'word', asset.canonical_word) AS translation,
+                target_payload.payload ->> 'explanation' AS definition,
+                target_payload.payload ->> 'example' AS example_sentence,
+                source_payload.payload ->> 'example' AS example_translation
+            FROM memory_palace_words word
+            JOIN word_assets asset ON asset.id = word.word_asset_id
+            LEFT JOIN LATERAL (
+                SELECT item.value AS payload
+                FROM jsonb_array_elements(asset.language_payloads::jsonb) AS item(value)
+                WHERE item.value ->> 'lang' = CASE
+                    WHEN lower(coalesce(#{targetLanguage}, 'en')) LIKE 'zh%' THEN 'zh'
+                    WHEN lower(coalesce(#{targetLanguage}, 'en')) LIKE 'ja%' THEN 'ja'
+                    ELSE 'en'
+                END
+                LIMIT 1
+            ) target_payload ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT item.value AS payload
+                FROM jsonb_array_elements(asset.language_payloads::jsonb) AS item(value)
+                WHERE item.value ->> 'lang' = CASE
+                    WHEN lower(coalesce(#{sourceLanguage}, 'zh-CN')) LIKE 'zh%' THEN 'zh'
+                    WHEN lower(coalesce(#{sourceLanguage}, 'zh-CN')) LIKE 'ja%' THEN 'ja'
+                    ELSE 'en'
+                END
+                LIMIT 1
+            ) source_payload ON TRUE
+            WHERE word.user_pk_id = #{userPkId}
+              AND word.palace_id = #{palaceId}
+            ORDER BY word.create_time DESC, word.id DESC
             LIMIT #{pageSize} OFFSET #{offset}
             """)
     List<MemoryPalaceWordDO> listByPalace(@Param("userPkId") Long userPkId,
                                           @Param("palaceId") Long palaceId,
+                                          @Param("sourceLanguage") String sourceLanguage,
+                                          @Param("targetLanguage") String targetLanguage,
                                           @Param("pageSize") int pageSize,
                                           @Param("offset") int offset);
 
@@ -71,4 +120,115 @@ public interface MemoryPalaceWordMapper {
 
     @Select("SELECT COUNT(1) FROM memory_palace_words WHERE user_pk_id = #{userPkId}")
     Integer countByUser(@Param("userPkId") Long userPkId);
+
+    @Select("""
+            SELECT source_image_url
+            FROM (
+                SELECT
+                    source_image_url,
+                    MAX(create_time) AS latest_time,
+                    MAX(id) AS latest_id
+                FROM memory_palace_words
+                WHERE user_pk_id = #{userPkId}
+                  AND palace_id = #{palaceId}
+                  AND source_image_url IS NOT NULL
+                  AND source_image_url <> ''
+                GROUP BY source_image_url
+            ) image
+            ORDER BY latest_time DESC, latest_id DESC
+            LIMIT #{limit}
+            """)
+    List<String> listLatestSourceImageUrlsByPalace(@Param("userPkId") Long userPkId,
+                                                   @Param("palaceId") Long palaceId,
+                                                   @Param("limit") int limit);
+
+    @Select("""
+            SELECT *
+            FROM memory_palace_words
+            WHERE user_pk_id = #{userPkId}
+              AND word_asset_id = #{wordAssetId}
+            ORDER BY update_time DESC, id DESC
+            LIMIT 1
+            """)
+    MemoryPalaceWordDO selectLatestByAsset(@Param("userPkId") Long userPkId,
+                                           @Param("wordAssetId") Long wordAssetId);
+
+    @Select("""
+            SELECT
+                word.id AS palace_word_id,
+                word.palace_id,
+                palace.scene_name,
+                palace.cover_url,
+                word.source_image_url,
+                word.word_asset_id,
+                COALESCE(target_payload.payload ->> 'word', asset.canonical_word) AS display_word,
+                COALESCE(source_payload.payload ->> 'word', asset.canonical_word) AS translation,
+                to_char(word.create_time, 'YYYY/MM/DD') AS create_time
+            FROM memory_palace_words word
+            JOIN memory_palaces palace ON palace.id = word.palace_id
+            JOIN word_assets asset ON asset.id = word.word_asset_id
+            LEFT JOIN LATERAL (
+                SELECT item.value AS payload
+                FROM jsonb_array_elements(asset.language_payloads::jsonb) AS item(value)
+                WHERE item.value ->> 'lang' = CASE
+                    WHEN lower(coalesce(#{targetLanguage}, 'en')) LIKE 'zh%' THEN 'zh'
+                    WHEN lower(coalesce(#{targetLanguage}, 'en')) LIKE 'ja%' THEN 'ja'
+                    ELSE 'en'
+                END
+                LIMIT 1
+            ) target_payload ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT item.value AS payload
+                FROM jsonb_array_elements(asset.language_payloads::jsonb) AS item(value)
+                WHERE item.value ->> 'lang' = CASE
+                    WHEN lower(coalesce(#{sourceLanguage}, 'zh-CN')) LIKE 'zh%' THEN 'zh'
+                    WHEN lower(coalesce(#{sourceLanguage}, 'zh-CN')) LIKE 'ja%' THEN 'ja'
+                    ELSE 'en'
+                END
+                LIMIT 1
+            ) source_payload ON TRUE
+            WHERE word.user_pk_id = #{userPkId}
+              AND (
+                  palace.scene_name ILIKE CONCAT('%', #{keyword}, '%')
+                  OR asset.word_key ILIKE CONCAT('%', #{keyword}, '%')
+                  OR asset.canonical_word ILIKE CONCAT('%', #{keyword}, '%')
+                  OR EXISTS (
+                      SELECT 1
+                      FROM jsonb_array_elements(asset.language_payloads::jsonb) AS search_item(value)
+                      WHERE search_item.value ->> 'lang' IN (
+                          CASE
+                              WHEN lower(coalesce(#{sourceLanguage}, 'zh-CN')) LIKE 'zh%' THEN 'zh'
+                              WHEN lower(coalesce(#{sourceLanguage}, 'zh-CN')) LIKE 'ja%' THEN 'ja'
+                              ELSE 'en'
+                          END,
+                          CASE
+                              WHEN lower(coalesce(#{targetLanguage}, 'en')) LIKE 'zh%' THEN 'zh'
+                              WHEN lower(coalesce(#{targetLanguage}, 'en')) LIKE 'ja%' THEN 'ja'
+                              ELSE 'en'
+                          END
+                      )
+                        AND (
+                            search_item.value ->> 'word' ILIKE CONCAT('%', #{keyword}, '%')
+                            OR search_item.value ->> 'phonetic' ILIKE CONCAT('%', #{keyword}, '%')
+                            OR search_item.value ->> 'explanation' ILIKE CONCAT('%', #{keyword}, '%')
+                            OR search_item.value ->> 'example' ILIKE CONCAT('%', #{keyword}, '%')
+                        )
+                  )
+              )
+            ORDER BY word.update_time DESC, word.id DESC
+            LIMIT #{limit}
+            """)
+    List<MemoryPalaceSearchWordDTO> searchWords(@Param("userPkId") Long userPkId,
+                                                @Param("keyword") String keyword,
+                                                @Param("sourceLanguage") String sourceLanguage,
+                                                @Param("targetLanguage") String targetLanguage,
+                                                @Param("limit") int limit);
+
+    @Delete("""
+            DELETE FROM memory_palace_words
+            WHERE user_pk_id = #{userPkId}
+              AND palace_id = #{palaceId}
+            """)
+    int deleteByPalace(@Param("userPkId") Long userPkId,
+                       @Param("palaceId") Long palaceId);
 }

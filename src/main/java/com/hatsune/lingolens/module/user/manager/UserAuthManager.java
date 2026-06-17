@@ -45,6 +45,7 @@ public class UserAuthManager {
                 .userId(nextUserIdValue())
                 .nickname(request.getNickname())
                 .avatarUrl(request.getAvatarUrl())
+                .email(StringUtils.hasText(request.getEmail()) ? request.getEmail().trim() : null)
                 .passwordHash(encodePassword(request.getPassword()))
                 .build();
         userMapper.insert(user);
@@ -57,6 +58,9 @@ public class UserAuthManager {
         UserDO user = userMapper.selectOne(UserDO.builder().userId(account).build());
         if (user == null) {
             user = userMapper.selectOne(UserDO.builder().nickname(account).build());
+        }
+        if (user == null) {
+            user = userMapper.selectOne(UserDO.builder().email(account).build());
         }
         return Optional.ofNullable(user);
     }

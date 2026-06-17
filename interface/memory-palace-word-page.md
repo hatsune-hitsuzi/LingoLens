@@ -30,23 +30,31 @@
 | `words` | Array | 单词列表 |
 | `words[].palaceWordId` | Long | 记忆宫殿单词主键 ID |
 | `words[].palaceId` | Long | 记忆宫殿主键 ID |
-| `words[].word` | String | 单词原文 |
-| `words[].displayWord` | String | 展示单词 |
-| `words[].phonetic` | String | 音标 |
-| `words[].pronunciationUrl` | String | 发音音频 URL |
+| `words[].wordAssetId` | Long | 全局单词资产 ID |
+| `words[].slotKey` | String | 宫殿锚点 key |
+| `words[].slotName` | String | 宫殿锚点展示名 |
+| `words[].anchorDescription` | String | 锚点描述 |
+| `words[].imageOptimized` | Boolean | 图片是否已压缩优化 |
+| `words[].imageUploadProvider` | String | 图片来源，当前为 `ai-generated` |
+| `words[].word` | String | 稳定英文 `word_key` |
+| `words[].displayWord` | String | 当前目标语言展示词 |
+| `words[].phonetic` | String | 当前目标语言读音文本：IPA / 罗马音 / 拼音 |
+| `words[].pronunciationUrl` | String | 动态拼接后的发音 URL |
 | `words[].partOfSpeech` | String | 词性 |
-| `words[].translation` | String | 翻译 |
-| `words[].definition` | String | 英文释义 |
-| `words[].exampleSentence` | String | 例句 |
-| `words[].exampleTranslation` | String | 例句翻译 |
-| `words[].sourceImageUrl` | String | 来源图片 URL |
-| `words[].createTime` | String | 创建时间 |
+| `words[].translation` | String | 当前源语言词面 |
+| `words[].definition` | String | 当前目标语言解释 |
+| `words[].exampleSentence` | String | 当前目标语言例句 |
+| `words[].exampleTranslation` | String | 当前源语言例句 |
+| `words[].sourceImageUrl` | String | SSO 图床或本地 asset URL |
+| `words[].createTime` | String | 创建时间，格式 `YYYY/MM/DD` |
+
+`displayWord`、`phonetic`、`translation`、`definition`、`exampleSentence`、`exampleTranslation` 都从 `word_assets.language_payloads` 按当前用户语言偏好投影，不在宫殿词表中保存语言快照。
 
 ## 请求示例
 
 ```json
 {
-  "palaceId": 20001,
+  "palaceId": 951000000000001,
   "pageNumber": 1,
   "pageSize": 20
 }

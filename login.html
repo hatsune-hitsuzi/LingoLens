@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LingoLens 登录 - 深空静谧</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      /* 采用 Apple 官方系统无衬线字体族 */
+      --apple-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #0b0b0c; /* 纯黑偏深灰底色 */
+      color: #ffffff;
+      font-family: var(--apple-font);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* 页面大标题 */
+    .page-title {
+      font-size: 20px;
+      font-weight: 500;
+      color: #86868b;
+      margin-bottom: 24px;
+      letter-spacing: -0.3px;
+    }
+
+    /* =========================================================
+       手机舞台容器 (模拟 iPhone 15 标准分辨率比例 393x852)
+    ========================================================= */
+    .phone-stage {
+      width: 393px;
+      height: 852px;
+      border-radius: 48px;
+      position: relative;
+      overflow: hidden;
+      border: 4px solid #2c2c2e; /* 模拟手机边框 */
+      background-image: linear-gradient(135deg, #1c1c1e 0%, #0b0b0c 100%);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+
+    /* 背景流光暗影层：模拟深度模糊的镜头或物品剪影 */
+    .blur-bg-layer {
+      position: absolute;
+      top: 15%;
+      right: -10%;
+      width: 250px;
+      height: 250px;
+      background: #3a3a3c;
+      border-radius: 50%;
+      filter: blur(50px); /* 景深高斯模糊 */
+      z-index: 1;
+      opacity: 0.6;
+    }
+
+    /* =========================================================
+       核心悬浮玻璃卡片 (Glassmorphism)
+    ========================================================= */
+    .glass-card {
+      position: absolute;
+      bottom: 60px; /* 靠下悬浮，方便大屏单手大拇指操作 */
+      left: 24px;
+      right: 24px;
+      background: rgba(30, 30, 32, 0.65); /* 暗色半透明蒙版 */
+      backdrop-filter: blur(30px); /* 苹果灵魂：硬件级背景滤镜 */
+      -webkit-backdrop-filter: blur(30px);
+      border: 1px solid rgba(255, 255, 255, 0.08); /* 极细白色微光边框 */
+      border-radius: 28px; /* 经典大圆角 */
+      padding: 36px 24px;
+      z-index: 2;
+    }
+
+    /* 标题排版 */
+    .form-title {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .form-subtitle {
+      font-size: 14px;
+      color: #86868b; /* 苹果二级文本标配灰色 */
+      margin-bottom: 36px;
+      line-height: 1.4;
+    }
+
+    /* =========================================================
+       极简无边框输入框组
+    ========================================================= */
+    .apple-input-group {
+      margin-bottom: 28px;
+      position: relative;
+    }
+
+    .apple-input {
+      width: 100%;
+      padding: 12px 0;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15); /* 仅留底部细线 */
+      font-size: 16px;
+      color: #ffffff;
+      outline: none;
+      transition: border-color 0.25s ease; /* 聚焦时的平滑过渡 */
+    }
+
+    .apple-input::placeholder {
+      color: #86868b;
+      opacity: 0.5;
+    }
+
+    /* 聚焦状态：底线优雅变为纯白，无发光 */
+    .apple-input:focus {
+      border-bottom-color: #ffffff;
+    }
+
+    /* =========================================================
+       按钮与第三方登录交互
+    ========================================================= */
+    .apple-btn {
+      width: 100%;
+      padding: 14px;
+      background: #ffffff; /* 纯白反差实色按钮 */
+      color: #1d1d1f;
+      border-radius: 12px;
+      border: none;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: opacity 0.2s ease;
+    }
+
+    .apple-btn:hover {
+      opacity: 0.85; /* 点击/悬停轻微透明度回馈 */
+    }
+
+    .oauth-section {
+      margin-top: 36px;
+      text-align: center;
+    }
+
+    .oauth-text {
+      font-size: 12px;
+      color: #86868b;
+      margin-bottom: 16px;
+      letter-spacing: 0.3px;
+    }
+
+    .oauth-icons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    /* 极简圆形社交登录按钮 */
+    .oauth-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .oauth-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-title">方案二：深空静谧 (Space Gray) 视觉规范</div>
+
+<div class="phone-stage">
+  <div class="blur-bg-layer"></div>
+
+  <div class="glass-card">
+    <h2 class="form-title">欢迎使用 LingoLens</h2>
+    <p class="form-subtitle">用镜头定格世界，让记忆自然苏醒。</p>
+
+    <div class="apple-input-group">
+      <input type="text" class="apple-input" placeholder="电子邮箱" autocomplete="off">
+    </div>
+    <div class="apple-input-group">
+      <input type="password" class="apple-input" placeholder="密码">
+    </div>
+
+    <button class="apple-btn">继续</button>
+
+    <div class="oauth-section">
+      <p class="oauth-text">或其他方式登录</p>
+      <div class="oauth-icons">
+        <div class="oauth-btn" title="Apple 登录"><i class="fa-brands fa-apple"></i></div>
+        <div class="oauth-btn" title="Google 登录"><i class="fa-brands fa-google"></i></div>
+        <div class="oauth-btn" title="面容/指纹解锁"><i class="fa-solid fa-face-id"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

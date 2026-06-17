@@ -29,14 +29,14 @@
 | `avatarUrl` | String | 头像 URL |
 | `email` | String | 用户邮箱 |
 | `bio` | String | 用户个人简介 |
-| `todayNewWordCount` | Integer | 今日新词数 |
-| `todayReviewWordCount` | Integer | 今日复习词数 |
+| `todayNewWordCount` | Integer | 今日新增扫描词数，来自 `ar_scan_words` 今日新增 |
+| `todayReviewWordCount` | Integer | 今日未答复习词数 |
 | `learnedWordCount` | Integer | 已学习单词数 |
 | `streakDays` | Integer | 连续学习天数 |
-| `currentBookName` | String | 当前词库名称 |
-| `dailyGoalWordCount` | Integer | 今日目标单词数 |
-| `todayFinishedWordCount` | Integer | 今日已完成单词数 |
-| `scannedWordCount` | Integer | AR 扫描词本总词数 |
+| `currentBookName` | String | 当前学习集合名称，当前移动端暂不展示 |
+| `dailyGoalWordCount` | Integer | 今日目标单词数，等于今日已答 + 今日未答 |
+| `todayFinishedWordCount` | Integer | 今日已完成单词数，来自 `review_records` 今日已答去重词数 |
+| `scannedWordCount` | Integer | AR 扫描词本总词数，后端从 `ar_scan_words` 按当前用户统计 |
 | `todayFinished` | Boolean | 今日是否完成 |
 | `menuItems` | Array | 当前页可见菜单和 Banner |
 
@@ -62,13 +62,13 @@
   "avatarUrl": "http://159.75.140.18:9000/lingolens/avatar.png",
   "email": "hatsune@example.com",
   "bio": "用现实场景记住新单词。",
-  "todayNewWordCount": 0,
-  "todayReviewWordCount": 0,
+  "todayNewWordCount": 3,
+  "todayReviewWordCount": 17,
   "learnedWordCount": 128,
   "streakDays": 0,
   "currentBookName": "",
-  "dailyGoalWordCount": 50,
-  "todayFinishedWordCount": 0,
+  "dailyGoalWordCount": 24,
+  "todayFinishedWordCount": 7,
   "scannedWordCount": 128,
   "todayFinished": false,
   "menuItems": []

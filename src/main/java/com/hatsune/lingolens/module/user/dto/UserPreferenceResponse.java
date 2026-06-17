@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * @author hatsune_hitsuzi
  * @since 2026-05-23
@@ -32,7 +34,24 @@ public class UserPreferenceResponse {
     private String targetLanguage;
 
     /**
+     * 语言方向编码，例如 en-zh-CN。
+     */
+    private String languageDirection;
+
+    /**
+     * 语言方向展示名，例如 英 -> 中。
+     */
+    private String languageDirectionName;
+
+    private String uiLanguage;
+
+    /**
      * 主题模式：system、light、dark。
      */
     private String themeMode;
+
+    /**
+     * 当前客户端可展示的语言方向列表，后续新增语言只扩展该列表。
+     */
+    private List<LanguagePairDTO> languagePairs;
 }

@@ -46,6 +46,9 @@ public class UserPreferenceDO {
     @TableField("target_language")
     private String targetLanguage;
 
+    @TableField("ui_language")
+    private String uiLanguage;
+
     /**
      * 主题模式：system、light、dark。
      */

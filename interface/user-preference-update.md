@@ -16,26 +16,26 @@
 
 | 字段 | 类型 | 必填 | 备注 |
 | --- | --- | --- | --- |
-| `sourceLanguage` | String | 否 | 源语言编码，例如 `en` |
-| `targetLanguage` | String | 否 | 目标语言编码，例如 `ja`、`zh-CN` |
+| `languageDirection` | String | 否 | 学习方向，例如 `ja-en`。传它时优先于单独的 source/target |
+| `sourceLanguage` | String | 否 | 学习源语言，例如 `zh-CN`、`ja`、`en` |
+| `targetLanguage` | String | 否 | 学习目标语言，例如 `en`、`ja`、`zh-CN` |
+| `uiLanguage` | String | 否 | App 界面语言，例如 `zh-CN`、`ja`、`en`。默认可跟随源语言 |
 | `themeMode` | String | 否 | 主题模式：`system`、`light`、`dark` |
 
 ## 响应参数
 
-| 字段 | 类型 | 备注 |
-| --- | --- | --- |
-| `result.rCode` | String | `0` 成功，`1` 失败 |
-| `result.msg` | String | 结果提示 |
-| `sourceLanguage` | String | 源语言编码 |
-| `targetLanguage` | String | 目标语言编码 |
-| `themeMode` | String | 主题模式 |
+同 [用户偏好查询](user-preference-info.md)。
 
 ## 请求示例
 
 ```json
 {
-  "sourceLanguage": "en",
-  "targetLanguage": "ja",
+  "languageDirection": "ja-en",
+  "sourceLanguage": "ja",
+  "targetLanguage": "en",
+  "uiLanguage": "ja",
   "themeMode": "dark"
 }
 ```
+
+当前内置方向：`zh-CN-en`、`zh-CN-ja`、`ja-zh-CN`、`ja-en`、`en-ja`、`en-zh-CN`。

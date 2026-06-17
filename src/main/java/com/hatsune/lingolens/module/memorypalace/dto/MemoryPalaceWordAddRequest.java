@@ -1,6 +1,8 @@
 package com.hatsune.lingolens.module.memorypalace.dto;
 
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.Data;
 
 /**
@@ -27,6 +29,19 @@ public class MemoryPalaceWordAddRequest {
      */
     @Size(max = 128)
     private String clientTraceId;
+
+    @Min(0)
+    @Max(100)
+    private Integer xPercent;
+
+    @Min(0)
+    @Max(100)
+    private Integer yPercent;
+
+    /**
+     * 全局单词资产主键 ID。移动端拿到单词详情后优先传这个值。
+     */
+    private Long wordAssetId;
 
     /**
      * 单词原文。

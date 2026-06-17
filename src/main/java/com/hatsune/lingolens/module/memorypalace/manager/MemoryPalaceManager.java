@@ -1,24 +1,37 @@
 package com.hatsune.lingolens.module.memorypalace.manager;
 
 import com.hatsune.lingolens.common.exception.BizException;
+import com.hatsune.lingolens.module.lens.bo.LensWordInfoBO;
+import com.hatsune.lingolens.module.arscan.manager.ArScanWordManager;
+import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceCreateBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceListBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordAddBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordPageBO;
 import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceDO;
 import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceWordDO;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceListRequest;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceSearchWordDTO;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordAddRequest;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordPageRequest;
 import com.hatsune.lingolens.module.memorypalace.mapper.MemoryPalaceMapper;
 import com.hatsune.lingolens.module.memorypalace.mapper.MemoryPalaceWordMapper;
+import com.hatsune.lingolens.module.memorypalace.support.SceneNameLocalizer;
 import com.hatsune.lingolens.infrastructure.id.DistributedIdGenerator;
+import com.hatsune.lingolens.module.user.domain.UserPreferenceDO;
+import com.hatsune.lingolens.module.user.manager.UserPreferenceManager;
+import com.hatsune.lingolens.module.wordasset.manager.WordAssetManager;
+import com.hatsune.lingolens.module.wordasset.manager.WordAssetWarmupManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * @author hatsune_hitsuzi
@@ -35,16 +48,32 @@ public class MemoryPalaceManager {
     private final MemoryPalaceMapper memoryPalaceMapper;
     private final MemoryPalaceWordMapper memoryPalaceWordMapper;
     private final DistributedIdGenerator distributedIdGenerator;
+    private final ArScanWordManager arScanWordManager;
+    private final WordAssetManager wordAssetManager;
+    private final WordAssetWarmupManager wordAssetWarmupManager;
+    private final UserPreferenceManager userPreferenceManager;
+    private final SceneNameLocalizer sceneNameLocalizer;
 
     public MemoryPalaceWordAddBO addWord(Long userPkId, MemoryPalaceWordAddRequest request) {
         MemoryPalaceDO palace = getOrCreatePalace(userPkId, request);
-        String wordKey = normalizeKey(request.getWord());
+        Long wordAssetId = resolveWordAssetId(userPkId, request);
         MemoryPalaceWordDO existedWord = memoryPalaceWordMapper.selectOne(MemoryPalaceWordDO.builder()
                 .userPkId(userPkId)
                 .palaceId(palace.getId())
-                .wordKey(wordKey)
+                .wordAssetId(wordAssetId)
                 .build());
         if (existedWord != null) {
+            memoryPalaceWordMapper.updateByPrimaryKey(MemoryPalaceWordDO.builder()
+                    .id(existedWord.getId())
+                    .sourceImageUrl(request.getSourceImageUrl())
+                    .slotKey(buildSpatialSlotKey(request))
+                    .slotName(buildSpatialSlotName(request))
+                    .anchorDescription(buildSpatialAnchorDescription(request))
+                    .imageOptimized(Boolean.TRUE)
+                    .imageUploadProvider("mobile-compressed")
+                    .updateTime(OffsetDateTime.now())
+                    .build());
+            arScanWordManager.recordWord(userPkId, palace.getId(), palace.getSceneName(), wordAssetId, request);
             return MemoryPalaceWordAddBO.builder()
                     .palaceId(palace.getId())
                     .palaceWordId(existedWord.getId())
@@ -59,21 +88,18 @@ public class MemoryPalaceManager {
                 .id(palaceWordId)
                 .palaceId(palace.getId())
                 .userPkId(userPkId)
-                .wordKey(wordKey)
-                .word(request.getWord())
-                .displayWord(StringUtils.hasText(request.getDisplayWord()) ? request.getDisplayWord() : request.getWord())
-                .phonetic(request.getPhonetic())
-                .pronunciationUrl(request.getPronunciationUrl())
-                .partOfSpeech(request.getPartOfSpeech())
-                .translation(request.getTranslation())
-                .definition(request.getDefinition())
-                .exampleSentence(request.getExampleSentence())
-                .exampleTranslation(request.getExampleTranslation())
+                .wordAssetId(wordAssetId)
                 .sourceImageUrl(request.getSourceImageUrl())
+                .slotKey(buildSpatialSlotKey(request))
+                .slotName(buildSpatialSlotName(request))
+                .anchorDescription(buildSpatialAnchorDescription(request))
+                .imageOptimized(Boolean.TRUE)
+                .imageUploadProvider("mobile-compressed")
                 .createTime(now)
                 .updateTime(now)
                 .build();
         memoryPalaceWordMapper.insert(word);
+        arScanWordManager.recordWord(userPkId, palace.getId(), palace.getSceneName(), wordAssetId, request);
 
         int newWordCount = defaultZero(palace.getWordCount()) + 1;
         memoryPalaceMapper.updateByPrimaryKey(MemoryPalaceDO.builder()
@@ -105,6 +131,119 @@ public class MemoryPalaceManager {
                 .build();
     }
 
+    public MemoryPalaceCreateBO createPalace(Long userPkId, String sceneName, String coverUrl) {
+        String normalizedSceneName = normalizeSceneName(sceneName);
+        String sceneKey = normalizeKey(normalizedSceneName);
+        MemoryPalaceDO existedPalace = memoryPalaceMapper.selectOne(MemoryPalaceDO.builder()
+                .userPkId(userPkId)
+                .sceneKey(sceneKey)
+                .build());
+        if (existedPalace != null) {
+            return MemoryPalaceCreateBO.builder()
+                    .created(false)
+                    .palace(existedPalace)
+                    .build();
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        int sortOrder = nextTopSortOrder(userPkId);
+        MemoryPalaceDO palace = MemoryPalaceDO.builder()
+                .id(distributedIdGenerator.id(PALACE_ID_BIZ_TYPE))
+                .userPkId(userPkId)
+                .sceneKey(sceneKey)
+                .sceneName(normalizedSceneName)
+                .coverUrl(coverUrl)
+                .wordCount(0)
+                .sortOrder(sortOrder)
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        memoryPalaceMapper.insert(palace);
+        return MemoryPalaceCreateBO.builder()
+                .created(true)
+                .palace(palace)
+                .build();
+    }
+
+    public int reorder(Long userPkId, List<Long> palaceIds) {
+        if (palaceIds == null || palaceIds.isEmpty()) {
+            return 0;
+        }
+        int acceptedCount = 0;
+        for (int index = 0; index < palaceIds.size(); index++) {
+            Long palaceId = palaceIds.get(index);
+            if (palaceId == null) {
+                continue;
+            }
+            acceptedCount += memoryPalaceMapper.updateSortOrder(userPkId, palaceId, index);
+        }
+        return acceptedCount;
+    }
+
+    public MemoryPalaceDO updatePalaceName(Long userPkId, Long palaceId, String sceneName) {
+        MemoryPalaceDO palace = getUserPalace(userPkId, palaceId);
+        String normalizedSceneName = normalizeSceneName(sceneName);
+        String sceneKey = normalizeKey(normalizedSceneName);
+        MemoryPalaceDO existedPalace = memoryPalaceMapper.selectOne(MemoryPalaceDO.builder()
+                .userPkId(userPkId)
+                .sceneKey(sceneKey)
+                .build());
+        if (existedPalace != null && !existedPalace.getId().equals(palaceId)) {
+            throw new BizException("memory palace name already exists");
+        }
+        int updated = memoryPalaceMapper.updateSceneName(userPkId, palaceId, sceneKey, normalizedSceneName);
+        if (updated < 1) {
+            throw new BizException("memory palace not found");
+        }
+        palace.setSceneKey(sceneKey);
+        palace.setSceneName(normalizedSceneName);
+        palace.setUpdateTime(OffsetDateTime.now());
+        return palace;
+    }
+
+    public boolean deletePalace(Long userPkId, Long palaceId) {
+        getUserPalace(userPkId, palaceId);
+        memoryPalaceWordMapper.deleteByPalace(userPkId, palaceId);
+        return memoryPalaceMapper.deleteByUserAndId(userPkId, palaceId) > 0;
+    }
+
+    public List<MemoryPalaceDO> searchPalaces(Long userPkId, String keyword, int limit) {
+        if (!StringUtils.hasText(keyword)) {
+            return List.of();
+        }
+        int normalizedLimit = normalizeSearchLimit(limit);
+        String normalizedKeyword = keyword.trim();
+        Map<Long, MemoryPalaceDO> resultMap = new LinkedHashMap<>();
+        memoryPalaceMapper.searchByName(userPkId, normalizedKeyword, normalizedLimit)
+                .forEach(palace -> resultMap.putIfAbsent(palace.getId(), palace));
+        if (resultMap.size() < normalizedLimit) {
+            memoryPalaceMapper.listByUser(userPkId, 100, 0).stream()
+                    .filter(palace -> sceneNameLocalizer.matches(palace.getSceneName(), normalizedKeyword))
+                    .forEach(palace -> resultMap.putIfAbsent(palace.getId(), palace));
+        }
+        return resultMap.values().stream()
+                .limit(normalizedLimit)
+                .toList();
+    }
+
+    public List<MemoryPalaceSearchWordDTO> searchWords(Long userPkId, String keyword, int limit) {
+        if (!StringUtils.hasText(keyword)) {
+            return List.of();
+        }
+        UserPreferenceDO preference = userPreferenceManager.getPreference(userPkId);
+        return memoryPalaceWordMapper.searchWords(
+                userPkId,
+                keyword.trim(),
+                preference.getSourceLanguage(),
+                preference.getTargetLanguage(),
+                normalizeSearchLimit(limit));
+    }
+
+    public List<String> latestSavedPhotos(Long userPkId, Long palaceId, int limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 6));
+        return memoryPalaceWordMapper.listLatestSourceImageUrlsByPalace(userPkId, palaceId, normalizedLimit);
+    }
+
     public MemoryPalaceWordPageBO pageWords(Long userPkId, MemoryPalaceWordPageRequest request) {
         MemoryPalaceDO palace = memoryPalaceMapper.selectByPrimaryKey(MemoryPalaceDO.builder()
                 .id(request.getPalaceId())
@@ -116,7 +255,14 @@ public class MemoryPalaceManager {
         int pageNumber = normalizePageNumber(request.getPageNumber());
         int pageSize = normalizePageSize(request.getPageSize());
         int offset = (pageNumber - 1) * pageSize;
-        List<MemoryPalaceWordDO> words = memoryPalaceWordMapper.listByPalace(userPkId, palace.getId(), pageSize, offset);
+        UserPreferenceDO preference = userPreferenceManager.getPreference(userPkId);
+        List<MemoryPalaceWordDO> words = memoryPalaceWordMapper.listByPalace(
+                userPkId,
+                palace.getId(),
+                preference.getSourceLanguage(),
+                preference.getTargetLanguage(),
+                pageSize,
+                offset);
         Integer total = memoryPalaceWordMapper.countByPalace(userPkId, palace.getId());
         return MemoryPalaceWordPageBO.builder()
                 .pageNumber(pageNumber)
@@ -128,6 +274,16 @@ public class MemoryPalaceManager {
 
     public int countWords(Long userPkId) {
         return defaultZero(memoryPalaceWordMapper.countByUser(userPkId));
+    }
+
+    private MemoryPalaceDO getUserPalace(Long userPkId, Long palaceId) {
+        MemoryPalaceDO palace = memoryPalaceMapper.selectByPrimaryKey(MemoryPalaceDO.builder()
+                .id(palaceId)
+                .build());
+        if (palace == null || !userPkId.equals(palace.getUserPkId())) {
+            throw new BizException("memory palace not found");
+        }
+        return palace;
     }
 
     private MemoryPalaceDO getOrCreatePalace(Long userPkId, MemoryPalaceWordAddRequest request) {
@@ -150,6 +306,7 @@ public class MemoryPalaceManager {
                 .sceneName(sceneName)
                 .coverUrl(request.getSourceImageUrl())
                 .wordCount(0)
+                .sortOrder(nextTopSortOrder(userPkId))
                 .createTime(now)
                 .updateTime(now)
                 .build();
@@ -165,7 +322,77 @@ public class MemoryPalaceManager {
     }
 
     public String normalizeWordKey(String word) {
-        return normalizeKey(word);
+        return StringUtils.hasText(word) ? normalizeKey(word) : "";
+    }
+
+    public String normalizeWordLockKey(MemoryPalaceWordAddRequest request) {
+        if (request.getWordAssetId() != null) {
+            return "asset:" + request.getWordAssetId();
+        }
+        return normalizeWordKey(request.getWord());
+    }
+
+    private String buildSpatialSlotKey(MemoryPalaceWordAddRequest request) {
+        if (request.getXPercent() == null || request.getYPercent() == null) {
+            return null;
+        }
+        return "ar:%02d:%02d".formatted(request.getXPercent(), request.getYPercent());
+    }
+
+    private String buildSpatialSlotName(MemoryPalaceWordAddRequest request) {
+        if (request.getXPercent() == null || request.getYPercent() == null) {
+            return null;
+        }
+        return "AR %d%% / %d%%".formatted(request.getXPercent(), request.getYPercent());
+    }
+
+    private String buildSpatialAnchorDescription(MemoryPalaceWordAddRequest request) {
+        if (request.getXPercent() == null || request.getYPercent() == null) {
+            return null;
+        }
+        return "Captured spatial anchor at x=%d%%, y=%d%% in the original scan photo."
+                .formatted(request.getXPercent(), request.getYPercent());
+    }
+
+    private Long resolveWordAssetId(Long userPkId, MemoryPalaceWordAddRequest request) {
+        UserPreferenceDO preference = userPreferenceManager.getPreference(userPkId);
+        if (request.getWordAssetId() != null) {
+            LensWordInfoBO wordInfo = wordAssetManager.resolveWordByAssetIdFast(
+                    request.getWordAssetId(),
+                    preference.getSourceLanguage(),
+                    preference.getTargetLanguage()
+            );
+            if (wordInfo == null) {
+                throw new BizException("word asset not found");
+            }
+            scheduleWordAssetWarmupAfterCommit(wordInfo.getWord());
+            return request.getWordAssetId();
+        }
+        LensWordInfoBO wordInfo = wordAssetManager.resolveWordFast(
+                request.getWord(),
+                preference.getSourceLanguage(),
+                preference.getTargetLanguage()
+        );
+        request.setWordAssetId(wordInfo.getWordAssetId());
+        scheduleWordAssetWarmupAfterCommit(wordInfo.getWord());
+        return wordInfo.getWordAssetId();
+    }
+
+    private void scheduleWordAssetWarmupAfterCommit(String word) {
+        if (!StringUtils.hasText(word)) {
+            return;
+        }
+        Runnable warmupTask = () -> wordAssetWarmupManager.warmupCoreLanguagePairs(List.of(word));
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            warmupTask.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                warmupTask.run();
+            }
+        });
     }
 
     private String normalizeKey(String value) {
@@ -181,6 +408,15 @@ public class MemoryPalaceManager {
             return 20;
         }
         return Math.min(pageSize, 100);
+    }
+
+    private int normalizeSearchLimit(int limit) {
+        return Math.max(1, Math.min(limit, 50));
+    }
+
+    private int nextTopSortOrder(Long userPkId) {
+        Integer minSortOrder = memoryPalaceMapper.minSortOrderByUser(userPkId);
+        return minSortOrder == null ? 0 : Math.min(minSortOrder - 1, 0);
     }
 
     private int defaultZero(Integer value) {

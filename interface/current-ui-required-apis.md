@@ -29,9 +29,6 @@
 | 可见菜单 | `POST /api/app/menu/visible-list` | [app-menu-visible-list.md](app-menu-visible-list.md) |
 | Lens 场景识别 | `POST /api/lens/recognize` | [lens-recognize.md](lens-recognize.md) |
 | Lens 单词卡详情 | `POST /api/lens/word/detail` | [lens-word-detail.md](lens-word-detail.md) |
-| 词库列表 | `POST /api/word-book/list` | [wordbook-list.md](wordbook-list.md) |
-| 词库详情 | `POST /api/word-book/detail` | [wordbook-detail.md](wordbook-detail.md) |
-| 词库单词分页 | `POST /api/word-book/word/page` | [wordbook-word-page.md](wordbook-word-page.md) |
 | 加入记忆宫殿 | `POST /api/memory-palace/word/add` | [memory-palace-word-add.md](memory-palace-word-add.md) |
 | 记忆宫殿列表 | `POST /api/memory-palace/list` | [memory-palace-list.md](memory-palace-list.md) |
 | 记忆宫殿单词分页 | `POST /api/memory-palace/word/page` | [memory-palace-word-page.md](memory-palace-word-page.md) |

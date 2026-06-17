@@ -59,6 +59,12 @@ public class MemoryPalaceDO {
     private Integer wordCount;
 
     /**
+     * 用户自定义展示顺序，数值越小越靠前。
+     */
+    @TableField("sort_order")
+    private Integer sortOrder;
+
+    /**
      * 创建时间。
      */
     @TableField("create_time")

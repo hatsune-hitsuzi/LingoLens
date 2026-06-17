@@ -45,14 +45,7 @@
 | --- | --- | --- | --- | --- |
 | Lens | 场景识别 | POST | `/api/lens/recognize` | [lens-recognize.md](lens-recognize.md) |
 | Lens | 单词卡详情 | POST | `/api/lens/word/detail` | [lens-word-detail.md](lens-word-detail.md) |
-
-## 词库
-
-| 模块 | 接口 | 方法 | 路径 | 文档 |
-| --- | --- | --- | --- | --- |
-| 词库 | 词库列表 | POST | `/api/word-book/list` | [wordbook-list.md](wordbook-list.md) |
-| 词库 | 词库详情 | POST | `/api/word-book/detail` | [wordbook-detail.md](wordbook-detail.md) |
-| 词库 | 词库单词分页 | POST | `/api/word-book/word/page` | [wordbook-word-page.md](wordbook-word-page.md) |
+| AR 扫描 | 扫描词本分页 | POST | `/api/ar-scan/word/page` | [ar-scan-word-page.md](ar-scan-word-page.md) |
 
 ## 记忆宫殿
 
@@ -61,6 +54,14 @@
 | 记忆宫殿 | 加入单词 | POST | `/api/memory-palace/word/add` | [memory-palace-word-add.md](memory-palace-word-add.md) |
 | 记忆宫殿 | 宫殿列表 | POST | `/api/memory-palace/list` | [memory-palace-list.md](memory-palace-list.md) |
 | 记忆宫殿 | 宫殿单词分页 | POST | `/api/memory-palace/word/page` | [memory-palace-word-page.md](memory-palace-word-page.md) |
+
+## 复习
+
+| 模块 | 接口 | 方法 | 路径 | 文档 |
+| --- | --- | --- | --- | --- |
+| 复习 | 今日复习数量 | POST | `/api/v1/review/count` | [review-card-review.md](review-card-review.md) |
+| 复习 | 今日复习卡片 | POST | `/api/v1/review/cards` | [review-card-review.md](review-card-review.md) |
+| 复习 | 批量提交复习结果 | POST | `/api/v1/review/answer/batch` | [review-card-review.md](review-card-review.md) |
 
 ## UI 规划
 

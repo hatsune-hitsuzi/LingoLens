@@ -1,6 +1,11 @@
 package com.hatsune.lingolens.module.memorypalace.service;
 
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceListResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceCreateResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceSearchResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceReorderResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceDeleteResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceUpdateResponse;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordAddResponse;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordPageResponse;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,6 +40,21 @@ public interface MemoryPalaceService {
      */
     @PostMapping("/list")
     MemoryPalaceListResponse list(@RequestBody String requestJson);
+
+    @PostMapping("/create")
+    MemoryPalaceCreateResponse create(@RequestBody String requestJson);
+
+    @PostMapping("/search")
+    MemoryPalaceSearchResponse search(@RequestBody String requestJson);
+
+    @PostMapping("/reorder")
+    MemoryPalaceReorderResponse reorder(@RequestBody String requestJson);
+
+    @PostMapping("/update")
+    MemoryPalaceUpdateResponse update(@RequestBody String requestJson);
+
+    @PostMapping("/delete")
+    MemoryPalaceDeleteResponse delete(@RequestBody String requestJson);
 
     /**
      * 接口功能: 分页查询某个记忆宫殿中的单词列表。

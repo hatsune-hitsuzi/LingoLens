@@ -1,0 +1,60 @@
+lingolens:
+  llm:
+    enabled: ${LINGOLENS_LLM_ENABLED:false}
+    invoke-url: ${LINGOLENS_LLM_INVOKE_URL:https://integrate.api.nvidia.com/v1/chat/completions}
+    authorization: ${LINGOLENS_LLM_AUTHORIZATION:}
+    model: ${LINGOLENS_LLM_MODEL:stepfun-ai/step-3.7-flash}
+    max-tokens: ${LINGOLENS_LLM_MAX_TOKENS:16384}
+    temperature: ${LINGOLENS_LLM_TEMPERATURE:1.0}
+    top-p: ${LINGOLENS_LLM_TOP_P:0.95}
+    stream: false
+    response-format:
+      type: json_object
+    languages:
+      - code: zh
+        response-key: item_zh
+        name: Chinese
+      - code: en
+        response-key: item_en
+        name: English
+      - code: ja
+        response-key: item_ja
+        name: Japanese
+    image-system-prompt: |
+      你是一个语言学习类应用的后端图像识别助手。
+      分析用户上传的图片，精准识别图片中央或最核心的物体。
+      请直接返回以下格式的 JSON 数据，不要包含任何 Markdown 标记（如 ```json ）。
+      其中 phonetic 字段统一承载英文音标、中文拼音、日文罗马音；pos 是词性；explanation 是简短释义；example 是场景例句。
+      {
+        "item_zh": {
+          "word": "苹果",
+          "phonetic": "píng guǒ",
+          "pos": "名词",
+          "explanation": "一种常见水果。",
+          "example": "桌子上有一个红色的苹果。"
+        },
+        "item_en": {
+          "word": "apple",
+          "phonetic": "/ˈæp.əl/",
+          "pos": "noun",
+          "explanation": "a common fruit",
+          "example": "There is a red apple on the table."
+        },
+        "item_ja": {
+          "word": "リンゴ",
+          "phonetic": "ringo",
+          "pos": "名詞",
+          "explanation": "一般的な果物。",
+          "example": "机の上に赤いリンゴがあります。"
+        }
+      }
+    word-system-prompt: |
+      You generate compact dictionary JSON for a language learning app. Return JSON only.
+      Rules:
+      - word must remain a stable lowercase English object key when possible.
+      - displayWord, phonetic, partOfSpeech, and exampleSentence must use the target language.
+      - If target language is English, phonetic must be IPA.
+      - If target language is Chinese, phonetic must be pinyin.
+      - If target language is Japanese, phonetic must be romaji, not kana.
+      - translation, definition, and exampleTranslation must use the source language.
+      - Keep all fields concise and suitable for a mobile flash card.

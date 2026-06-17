@@ -75,7 +75,7 @@ public class HomeIndexResponse {
     private Integer streakDays;
 
     /**
-     * 当前学习词库名称。
+     * 当前学习集合名称，当前移动端暂不展示。
      */
     private String currentBookName;
 

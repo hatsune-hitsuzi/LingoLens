@@ -1,5 +1,6 @@
 package com.hatsune.lingolens.module.memorypalace.dto;
 
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -18,4 +19,7 @@ public class MemoryPalaceListRequest {
      * 每页条数。
      */
     private Integer pageSize = 20;
+
+    @Size(max = 16)
+    private String displayLanguage;
 }

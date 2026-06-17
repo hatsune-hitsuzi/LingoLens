@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * @author hatsune_hitsuzi
@@ -27,10 +27,14 @@ public class MemoryPalaceItemDTO {
      */
     private String sceneName;
 
+    private String localizedSceneName;
+
     /**
      * 场景封面 URL。
      */
     private String coverUrl;
+
+    private List<String> savedPhotos;
 
     /**
      * 当前场景单词数量。
@@ -40,5 +44,5 @@ public class MemoryPalaceItemDTO {
     /**
      * 最近更新时间。
      */
-    private OffsetDateTime updateTime;
+    private String updateTime;
 }

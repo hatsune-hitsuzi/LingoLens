@@ -19,15 +19,10 @@
 | `sceneName` | String | 否 | 场景名称，不传默认 `Default Scene` |
 | `sourceImageUrl` | String | 否 | 来源图片 URL，可由 OSS 上传接口返回 |
 | `clientTraceId` | String | 否 | 客户端链路 ID |
-| `word` | String | 是 | 单词原文 |
-| `displayWord` | String | 否 | 展示单词，不传默认使用 `word` |
-| `phonetic` | String | 否 | 音标 |
-| `pronunciationUrl` | String | 否 | 发音音频 URL |
-| `partOfSpeech` | String | 否 | 词性 |
-| `translation` | String | 条件必填 | 翻译，`translation` 和 `definition` 至少传一个 |
-| `definition` | String | 条件必填 | 英文释义，`translation` 和 `definition` 至少传一个 |
-| `exampleSentence` | String | 否 | 例句 |
-| `exampleTranslation` | String | 否 | 例句翻译 |
+| `wordAssetId` | Long | 推荐 | 全局单词资产 ID；有它时后端只保存 ID，并按当前语言偏好投影展示 |
+| `word` | String | 条件必填 | 没有 `wordAssetId` 时必填，后端会先创建/补齐词资产 |
+| `displayWord` / `phonetic` / `pronunciationUrl` / `partOfSpeech` | String | 否 | 仅作为无 `wordAssetId` 的本地兜底信息 |
+| `translation` / `definition` / `exampleSentence` / `exampleTranslation` | String | 否 | 仅作为无 `wordAssetId` 的本地兜底信息 |
 
 ## 响应参数
 
@@ -46,14 +41,9 @@
 {
   "sceneName": "浅草咖啡馆",
   "sourceImageUrl": "http://159.75.140.18:9000/lingolens/demo.jpg",
-  "word": "mug",
-  "displayWord": "Mug",
-  "phonetic": "[mug]",
-  "partOfSpeech": "n.",
-  "translation": "马克杯",
-  "definition": "a large cup with a handle",
-  "exampleSentence": "She poured coffee into her favorite mug.",
-  "exampleTranslation": "她把咖啡倒进最喜欢的马克杯。"
+  "clientTraceId": "mobile-add-10001",
+  "wordAssetId": 940000000000001,
+  "word": "mug"
 }
 ```
 

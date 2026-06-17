@@ -2,9 +2,10 @@ package com.hatsune.lingolens.module.home.manager;
 
 import com.hatsune.lingolens.common.exception.BizException;
 import com.hatsune.lingolens.module.admin.manager.AdminMenuManager;
+import com.hatsune.lingolens.module.arscan.manager.ArScanWordManager;
 import com.hatsune.lingolens.module.home.bo.HomeIndexBO;
 import com.hatsune.lingolens.module.home.dto.HomeIndexRequest;
-import com.hatsune.lingolens.module.memorypalace.manager.MemoryPalaceManager;
+import com.hatsune.lingolens.module.review.manager.ReviewManager;
 import com.hatsune.lingolens.module.user.domain.UserDO;
 import com.hatsune.lingolens.module.user.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
@@ -20,25 +21,30 @@ public class HomeManager {
 
     private final UserMapper userMapper;
     private final AdminMenuManager adminMenuManager;
-    private final MemoryPalaceManager memoryPalaceManager;
+    private final ArScanWordManager arScanWordManager;
+    private final ReviewManager reviewManager;
 
     public HomeIndexBO getHomeIndex(Long id, HomeIndexRequest request) {
         UserDO user = userMapper.selectByPrimaryKey(UserDO.builder().id(id).build());
         if (user == null) {
             throw new BizException("user not found");
         }
-        int scannedWordCount = memoryPalaceManager.countWords(id);
+        int scannedWordCount = arScanWordManager.countWords(id);
+        int todayNewWordCount = arScanWordManager.countCreatedToday(id);
+        int todayFinishedWordCount = reviewManager.countAnsweredToday(id);
+        int todayReviewWordCount = reviewManager.countDueToday(id);
+        int dailyGoalWordCount = todayFinishedWordCount + todayReviewWordCount;
         return HomeIndexBO.builder()
                 .user(user)
-                .todayNewWordCount(0)
-                .todayReviewWordCount(0)
+                .todayNewWordCount(todayNewWordCount)
+                .todayReviewWordCount(todayReviewWordCount)
                 .learnedWordCount(scannedWordCount)
                 .streakDays(0)
                 .currentBookName("")
-                .dailyGoalWordCount(50)
-                .todayFinishedWordCount(0)
+                .dailyGoalWordCount(dailyGoalWordCount)
+                .todayFinishedWordCount(todayFinishedWordCount)
                 .scannedWordCount(scannedWordCount)
-                .todayFinished(false)
+                .todayFinished(dailyGoalWordCount > 0 && todayFinishedWordCount >= dailyGoalWordCount)
                 .menuItems(adminMenuManager.listVisible(request.getPageCode(), request.getMenuType()))
                 .build();
     }

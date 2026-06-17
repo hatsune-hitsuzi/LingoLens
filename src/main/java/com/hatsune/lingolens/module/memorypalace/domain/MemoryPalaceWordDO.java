@@ -41,63 +41,81 @@ public class MemoryPalaceWordDO {
     private Long userPkId;
 
     /**
-     * 单词去重键，通常为小写后的原词。
+     * 全局单词资产主键 ID。
      */
-    @TableField("word_key")
+    @TableField("word_asset_id")
+    private Long wordAssetId;
+
+    @TableField("slot_key")
+    private String slotKey;
+
+    @TableField("slot_name")
+    private String slotName;
+
+    @TableField("anchor_description")
+    private String anchorDescription;
+
+    @TableField("image_optimized")
+    private Boolean imageOptimized;
+
+    @TableField("image_upload_provider")
+    private String imageUploadProvider;
+
+    @TableField(value = "word_key", exist = false)
     private String wordKey;
 
     /**
      * 单词原文。
      */
-    @TableField("word")
+    @TableField(value = "word", exist = false)
     private String word;
 
     /**
      * 单词展示文案。
      */
-    @TableField("display_word")
+    @TableField(value = "display_word", exist = false)
     private String displayWord;
 
     /**
      * 音标。
      */
-    @TableField("phonetic")
+    @TableField(value = "phonetic", exist = false)
     private String phonetic;
 
     /**
      * 发音音频 URL。
      */
-    @TableField("pronunciation_url")
+    @TableField(value = "pronunciation_url", exist = false)
     private String pronunciationUrl;
 
     /**
      * 词性。
      */
-    @TableField("part_of_speech")
+    @TableField(value = "part_of_speech", exist = false)
     private String partOfSpeech;
 
     /**
      * 翻译。
      */
-    @TableField("translation")
+    @TableField(value = "translation", exist = false)
     private String translation;
 
     /**
      * 英文释义。
      */
-    @TableField("definition")
+    @TableField(value = "definition", exist = false)
     private String definition;
 
     /**
      * 例句。
      */
-    @TableField("example_sentence")
+    @TableField(value = "example_sentence", exist = false)
     private String exampleSentence;
 
     /**
      * 例句翻译。
      */
-    @TableField("example_translation")
+    @TableField(value = "example_translation", exist = false)
     private String exampleTranslation;
 
     /**

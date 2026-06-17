@@ -12,6 +12,12 @@ import lombok.Data;
 public class UserPreferenceUpdateRequest {
 
     /**
+     * 语言方向编码，例如 en-zh-CN。优先级高于单独传 sourceLanguage/targetLanguage。
+     */
+    @Size(max = 40)
+    private String languageDirection;
+
+    /**
      * 源语言编码，例如 en。
      */
     @Size(max = 16)
@@ -22,6 +28,9 @@ public class UserPreferenceUpdateRequest {
      */
     @Size(max = 16)
     private String targetLanguage;
+
+    @Size(max = 16)
+    private String uiLanguage;
 
     /**
      * 主题模式：system、light、dark。

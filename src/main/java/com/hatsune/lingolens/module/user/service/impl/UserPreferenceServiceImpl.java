@@ -10,6 +10,7 @@ import com.hatsune.lingolens.module.user.dto.UserPreferenceResponse;
 import com.hatsune.lingolens.module.user.dto.UserPreferenceUpdateRequest;
 import com.hatsune.lingolens.module.user.manager.UserPreferenceManager;
 import com.hatsune.lingolens.module.user.service.UserPreferenceService;
+import com.hatsune.lingolens.module.user.support.LanguagePairCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserPreferenceServiceImpl implements UserPreferenceService {
 
     private final UserPreferenceManager userPreferenceManager;
+    private final LanguagePairCatalog languagePairCatalog;
     private final CommonTools commonTools;
 
     @Override
@@ -71,11 +73,17 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     }
 
     private void normalizeRequest(UserPreferenceUpdateRequest request) {
+        if (request.getLanguageDirection() != null) {
+            request.setLanguageDirection(request.getLanguageDirection().trim());
+        }
         if (request.getSourceLanguage() != null) {
             request.setSourceLanguage(request.getSourceLanguage().trim());
         }
         if (request.getTargetLanguage() != null) {
             request.setTargetLanguage(request.getTargetLanguage().trim());
+        }
+        if (request.getUiLanguage() != null) {
+            request.setUiLanguage(request.getUiLanguage().trim());
         }
         if (request.getThemeMode() != null) {
             request.setThemeMode(request.getThemeMode().trim());
@@ -86,16 +94,28 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         Assert.notNull(request, "user preference update request must not be null");
         Assert.isTrue(StringUtils.hasText(request.getSourceLanguage())
                         || StringUtils.hasText(request.getTargetLanguage())
+                        || StringUtils.hasText(request.getLanguageDirection())
+                        || StringUtils.hasText(request.getUiLanguage())
                         || StringUtils.hasText(request.getThemeMode()),
-                "source language, target language or theme mode must not be blank");
+                "language direction, source language, target language, ui language or theme mode must not be blank");
     }
 
     private UserPreferenceResponse buildSuccessResponse(UserPreferenceDO preference) {
+        String direction = languagePairCatalog.direction(preference.getSourceLanguage(), preference.getTargetLanguage());
+        String directionName = languagePairCatalog.find(preference.getSourceLanguage(), preference.getTargetLanguage())
+                .map(pair -> pair.getLabel())
+                .orElse(direction);
         return UserPreferenceResponse.builder()
                 .result(ResponseResult.success())
                 .sourceLanguage(preference.getSourceLanguage())
                 .targetLanguage(preference.getTargetLanguage())
+                .languageDirection(direction)
+                .languageDirectionName(directionName)
+                .uiLanguage(StringUtils.hasText(preference.getUiLanguage())
+                        ? preference.getUiLanguage()
+                        : preference.getSourceLanguage())
                 .themeMode(preference.getThemeMode())
+                .languagePairs(languagePairCatalog.supportedPairs())
                 .build();
     }
 

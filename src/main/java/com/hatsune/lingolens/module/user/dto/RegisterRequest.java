@@ -1,6 +1,7 @@
 package com.hatsune.lingolens.module.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -31,4 +32,11 @@ public class RegisterRequest {
     @NotBlank
     @Size(max = 512)
     private String avatarUrl;
+
+    /**
+     * Optional login email captured by the mobile auth screen.
+     */
+    @Email
+    @Size(max = 128)
+    private String email;
 }
