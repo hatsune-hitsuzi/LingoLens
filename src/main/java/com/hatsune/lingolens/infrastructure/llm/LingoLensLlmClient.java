@@ -43,8 +43,9 @@ public class LingoLensLlmClient {
 
     public boolean available() {
         return properties.isEnabled()
-                && StringUtils.hasText(properties.endpoint())
-                && StringUtils.hasText(properties.authorizationHeader());
+                && (StringUtils.hasText(properties.authorizationHeader())
+                || StringUtils.hasText(properties.groundingAuthorizationHeader())
+                || StringUtils.hasText(properties.enrichmentAuthorizationHeader()));
     }
 
     public JSONObject completeJson(String systemPrompt, String userPrompt) {
@@ -52,77 +53,91 @@ public class LingoLensLlmClient {
     }
 
     public JSONObject completeJson(String systemPrompt, String userPrompt, String imageUrl) {
-        if (!available()) {
-            log.warn("llm request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}",
+        if (!properties.enrichmentAvailable()) {
+            log.warn("llm enrichment request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}",
                     properties.isEnabled(),
-                    StringUtils.hasText(properties.endpoint()),
-                    StringUtils.hasText(properties.authorizationHeader()));
+                    StringUtils.hasText(properties.enrichmentEndpoint()),
+                    StringUtils.hasText(properties.enrichmentAuthorizationHeader()));
             return null;
         }
         try {
-            JSONObject request = buildRequest(systemPrompt, userPrompt, imageUrl);
+            JSONObject request = buildRequest(
+                    systemPrompt,
+                    userPrompt,
+                    imageUrl,
+                    properties.enrichmentModel(),
+                    properties.enrichmentMaxTokens(),
+                    properties.enrichmentTemperature(),
+                    false);
             Instant start = Instant.now();
-            log.info("llm request start, model={}, endpoint={}, stream={}, imagePresent={}, systemPromptLength={}, userPromptLength={}",
-                    properties.getModel(),
-                    properties.endpoint(),
+            log.info("llm enrichment request start, model={}, endpoint={}, stream={}, imagePresent={}, maxTokens={}, temperature={}, systemPromptLength={}, userPromptLength={}",
+                    properties.enrichmentModel(),
+                    properties.enrichmentEndpoint(),
                     request.getBooleanValue("stream"),
-                    StringUtils.hasText(imageUrl),
-                    safeLength(systemPrompt),
-                    safeLength(userPrompt));
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(properties.endpoint()))
-                    .timeout(Duration.ofSeconds(normalizeTimeout(properties.getRequestTimeoutSeconds(), 90)))
-                    .header("Content-Type", "application/json")
-                    .header("Accept", properties.isStream() ? "text/event-stream" : "application/json")
-                    .header("Authorization", properties.authorizationHeader())
-                    .POST(HttpRequest.BodyPublishers.ofString(request.toJSONString()))
-                    .build();
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-            long elapsedMillis = Duration.between(start, Instant.now()).toMillis();
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.warn("llm request failed, status={}, elapsedMillis={}, body={}",
-                        response.statusCode(), elapsedMillis, response.body());
-                return null;
-            }
-            JSONObject parsed = parseChatJson(response.body());
-            log.info("llm request success, status={}, elapsedMillis={}, contentSnippet={}",
-                    response.statusCode(), elapsedMillis, snippet(chatContent(response.body())));
-            return parsed;
-        } catch (Exception e) {
-            log.warn("llm request failed", e);
-            return null;
-        }
-    }
-
-    public JSONArray completeJsonArray(String systemPrompt, String userPrompt, String imageUrl) {
-        if (!available()) {
-            log.warn("llm grounding request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}",
-                    properties.isEnabled(),
-                    StringUtils.hasText(properties.endpoint()),
-                    StringUtils.hasText(properties.authorizationHeader()));
-            return new JSONArray();
-        }
-        try {
-            JSONObject request = buildRequest(systemPrompt, userPrompt, imageUrl);
-            request.put("response_format", Map.of("type", "json_object"));
-            request.put("stream", false);
-            request.put("temperature", 0.0D);
-            request.put("max_tokens", 1500);
-            Instant start = Instant.now();
-            log.info("llm grounding request start, model={}, endpoint={}, imagePresent={}, maxTokens={}, temperature={}, systemPromptLength={}, userPromptLength={}",
-                    properties.getModel(),
-                    properties.endpoint(),
                     StringUtils.hasText(imageUrl),
                     request.getInteger("max_tokens"),
                     request.getDouble("temperature"),
                     safeLength(systemPrompt),
                     safeLength(userPrompt));
             HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(properties.endpoint()))
+                    .uri(URI.create(properties.enrichmentEndpoint()))
                     .timeout(Duration.ofSeconds(normalizeTimeout(properties.getRequestTimeoutSeconds(), 90)))
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
-                    .header("Authorization", properties.authorizationHeader())
+                    .header("Authorization", properties.enrichmentAuthorizationHeader())
+                    .POST(HttpRequest.BodyPublishers.ofString(request.toJSONString()))
+                    .build();
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            long elapsedMillis = Duration.between(start, Instant.now()).toMillis();
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("llm enrichment request failed, status={}, elapsedMillis={}, body={}",
+                        response.statusCode(), elapsedMillis, response.body());
+                return null;
+            }
+            JSONObject parsed = parseChatJson(response.body());
+            log.info("llm enrichment request success, status={}, elapsedMillis={}, contentSnippet={}",
+                    response.statusCode(), elapsedMillis, snippet(chatContent(response.body())));
+            return parsed;
+        } catch (Exception e) {
+            log.warn("llm enrichment request failed", e);
+            return null;
+        }
+    }
+
+    public JSONArray completeJsonArray(String systemPrompt, String userPrompt, String imageUrl) {
+        if (!properties.groundingAvailable()) {
+            log.warn("llm grounding request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}",
+                    properties.isEnabled(),
+                    StringUtils.hasText(properties.groundingEndpoint()),
+                    StringUtils.hasText(properties.groundingAuthorizationHeader()));
+            return new JSONArray();
+        }
+        try {
+            JSONObject request = buildRequest(
+                    systemPrompt,
+                    userPrompt,
+                    imageUrl,
+                    properties.groundingModel(),
+                    properties.groundingMaxTokens(),
+                    properties.groundingTemperature(),
+                    false);
+            request.put("response_format", Map.of("type", "json_object"));
+            request.put("stream", false);
+            Instant start = Instant.now();
+            log.info("llm grounding request start, model={}, endpoint={}, imagePresent={}, maxTokens={}, temperature={}, systemPromptLength={}, userPromptLength={}",
+                    properties.groundingModel(),
+                    properties.groundingEndpoint(),
+                    StringUtils.hasText(imageUrl),
+                    request.getInteger("max_tokens"),
+                    request.getDouble("temperature"),
+                    safeLength(systemPrompt),
+                    safeLength(userPrompt));
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(properties.groundingEndpoint()))
+                    .timeout(Duration.ofSeconds(normalizeTimeout(properties.getRequestTimeoutSeconds(), 90)))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .header("Authorization", properties.groundingAuthorizationHeader())
                     .POST(HttpRequest.BodyPublishers.ofString(request.toJSONString()))
                     .build();
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
@@ -185,13 +200,19 @@ public class LingoLensLlmClient {
         }
     }
 
-    private JSONObject buildRequest(String systemPrompt, String userPrompt, String imageUrl) {
+    private JSONObject buildRequest(String systemPrompt,
+                                    String userPrompt,
+                                    String imageUrl,
+                                    String model,
+                                    int maxTokens,
+                                    double temperature,
+                                    boolean stream) {
         JSONObject request = new JSONObject();
-        request.put("model", properties.getModel());
-        request.put("max_tokens", properties.getMaxTokens());
-        request.put("temperature", properties.getTemperature());
+        request.put("model", model);
+        request.put("max_tokens", maxTokens);
+        request.put("temperature", temperature);
         request.put("top_p", properties.getTopP());
-        request.put("stream", properties.isStream());
+        request.put("stream", stream);
         request.put("response_format", Map.of("type", properties.responseFormatType()));
         request.put("messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
@@ -233,11 +254,11 @@ public class LingoLensLlmClient {
     }
 
     private JSONObject parseChatJson(String responseBody) {
-        String content = chatContent(responseBody);
+        String content = stripJsonFence(chatContent(responseBody));
         if (!StringUtils.hasText(content)) {
             return null;
         }
-        return JSON.parseObject(stripJsonFence(content));
+        return JSON.parseObject(extractJsonObject(content));
     }
 
     private JSONArray parseChatJsonArray(String responseBody) {
@@ -252,7 +273,7 @@ public class LingoLensLlmClient {
             }
         }
         try {
-            JSONObject wrapper = JSON.parseObject(content);
+            JSONObject wrapper = JSON.parseObject(extractJsonObject(content));
             JSONArray nodes = wrapper.getJSONArray("nodes");
             if (nodes == null) {
                 nodes = wrapper.getJSONArray("items");
@@ -273,6 +294,59 @@ public class LingoLensLlmClient {
             log.warn("llm grounding json array parse failed, contentSnippet={}", snippet(content), e);
         }
         return new JSONArray();
+    }
+
+    private String extractJsonObject(String content) {
+        if (!StringUtils.hasText(content)) {
+            return "";
+        }
+        String trimmed = content.trim();
+        int objectStart = trimmed.indexOf('{');
+        if (objectStart < 0) {
+            return trimmed;
+        }
+        String source = trimmed.substring(objectStart);
+        StringBuilder json = new StringBuilder();
+        List<Character> stack = new java.util.ArrayList<>();
+        boolean inString = false;
+        boolean escaping = false;
+        for (int index = 0; index < source.length(); index++) {
+            char ch = source.charAt(index);
+            json.append(ch);
+            if (escaping) {
+                escaping = false;
+                continue;
+            }
+            if (ch == '\\' && inString) {
+                escaping = true;
+                continue;
+            }
+            if (ch == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) {
+                continue;
+            }
+            if (ch == '{' || ch == '[') {
+                stack.add(ch);
+                continue;
+            }
+            if (ch == '}' || ch == ']') {
+                popMatching(stack, ch);
+                if (stack.isEmpty()) {
+                    return json.toString();
+                }
+            }
+        }
+        if (inString) {
+            json.append('"');
+        }
+        for (int index = stack.size() - 1; index >= 0; index--) {
+            char opening = stack.get(index);
+            json.append(opening == '{' ? '}' : ']');
+        }
+        return json.toString();
     }
 
     private JSONArray parsePossiblyTruncatedJsonArray(String content) {

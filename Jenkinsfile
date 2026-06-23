@@ -221,8 +221,14 @@ void dockerDeploy() {
                 -e TZ=Asia/Shanghai \\
                 -e LINGOLENS_LLM_ENABLED=true \\
                 -e LINGOLENS_LLM_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
-                -e LINGOLENS_LLM_MAX_TOKENS=800 \\
-                -e LINGOLENS_LLM_TEMPERATURE=0 \\
+                -e LINGOLENS_LLM_GROUNDING_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
+                -e LINGOLENS_LLM_GROUNDING_MODEL=gemma-3n-e2b-it \\
+                -e LINGOLENS_LLM_GROUNDING_MAX_TOKENS=1200 \\
+                -e LINGOLENS_LLM_GROUNDING_TEMPERATURE=0 \\
+                -e LINGOLENS_LLM_ENRICHMENT_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
+                -e LINGOLENS_LLM_ENRICHMENT_MODEL=MiniMax-M3 \\
+                -e LINGOLENS_LLM_ENRICHMENT_MAX_TOKENS=2400 \\
+                -e LINGOLENS_LLM_ENRICHMENT_TEMPERATURE=0.1 \\
                 -e LINGOLENS_LLM_REQUEST_TIMEOUT_SECONDS=90 \\
                 -e LINGOLENS_LLM_STREAM_TIMEOUT_SECONDS=90 \\
                 ${image}

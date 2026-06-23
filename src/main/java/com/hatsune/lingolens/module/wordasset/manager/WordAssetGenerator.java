@@ -261,8 +261,11 @@ public class WordAssetGenerator {
                             Source language: %s
                             Target language: %s
 
-                            Return fields:
+                            Return exactly these JSON fields:
                             word, displayWord, phonetic, partOfSpeech, translation, definition, exampleSentence, exampleTranslation.
+                            
+                            Reminder:
+                            No prose. No markdown. No explanations. The first output character must be "{".
                             """.formatted(wordKey, sourceLanguage, targetLanguage)
             );
             if (generated == null) {
@@ -362,14 +365,22 @@ public class WordAssetGenerator {
             return llmProperties.getWordSystemPrompt();
         }
         return """
-                You generate compact dictionary JSON for a language learning app. Return JSON only.
+                You are MiniMax-M3 acting as a senior trilingual lexicographer for a language learning app.
+                Return one raw JSON object only. No markdown, no prose, no chain-of-thought.
+
+                Required fields:
+                word, displayWord, phonetic, partOfSpeech, translation, definition, exampleSentence, exampleTranslation.
+
                 Rules:
                 - word must remain a stable lowercase English object key when possible.
-                - displayWord, phonetic, partOfSpeech, and exampleSentence must use the target language.
-                - If target language is English, phonetic must be IPA.
-                - If target language is Japanese, phonetic must be romaji, not kana.
-                - translation, definition, and exampleTranslation must use the source language.
-                - Keep all fields concise and suitable for a mobile flash card.
+                - displayWord, phonetic, partOfSpeech, and exampleSentence use the target language.
+                - translation, definition, and exampleTranslation use the source/native language.
+                - If target language is English, phonetic must be standard IPA.
+                - If target language is Chinese, phonetic must be pinyin with tone marks.
+                - If target language is Japanese, phonetic must include kana plus romaji, for example "ボトル / botoru".
+                - definition is a professional concise meaning, not a casual one-word translation.
+                - exampleSentence must be natural, short, and object-scene oriented.
+                - Keep the result suitable for a mobile vocabulary card.
                 """;
     }
 

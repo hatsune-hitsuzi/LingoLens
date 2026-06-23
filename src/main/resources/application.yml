@@ -7,6 +7,18 @@ lingolens:
     max-tokens: ${LINGOLENS_LLM_MAX_TOKENS:16384}
     temperature: ${LINGOLENS_LLM_TEMPERATURE:1.0}
     top-p: ${LINGOLENS_LLM_TOP_P:0.95}
+    grounding-invoke-url: ${LINGOLENS_LLM_GROUNDING_INVOKE_URL:}
+    grounding-authorization: ${LINGOLENS_LLM_GROUNDING_AUTHORIZATION:}
+    grounding-api-key: ${LINGOLENS_LLM_GROUNDING_API_KEY:}
+    grounding-model: ${LINGOLENS_LLM_GROUNDING_MODEL:gemma-3n-e2b-it}
+    grounding-max-tokens: ${LINGOLENS_LLM_GROUNDING_MAX_TOKENS:1200}
+    grounding-temperature: ${LINGOLENS_LLM_GROUNDING_TEMPERATURE:0}
+    enrichment-invoke-url: ${LINGOLENS_LLM_ENRICHMENT_INVOKE_URL:}
+    enrichment-authorization: ${LINGOLENS_LLM_ENRICHMENT_AUTHORIZATION:}
+    enrichment-api-key: ${LINGOLENS_LLM_ENRICHMENT_API_KEY:}
+    enrichment-model: ${LINGOLENS_LLM_ENRICHMENT_MODEL:MiniMax-M3}
+    enrichment-max-tokens: ${LINGOLENS_LLM_ENRICHMENT_MAX_TOKENS:2400}
+    enrichment-temperature: ${LINGOLENS_LLM_ENRICHMENT_TEMPERATURE:0.1}
     request-timeout-seconds: ${LINGOLENS_LLM_REQUEST_TIMEOUT_SECONDS:90}
     stream-timeout-seconds: ${LINGOLENS_LLM_STREAM_TIMEOUT_SECONDS:90}
     stream: false
@@ -51,12 +63,19 @@ lingolens:
         }
       }
     word-system-prompt: |
-      You generate compact dictionary JSON for a language learning app. Return JSON only.
+      You are MiniMax-M3 acting as a senior trilingual lexicographer for a language learning app.
+      Return one raw JSON object only. No markdown, no prose, no chain-of-thought.
+
+      Required fields:
+      word, displayWord, phonetic, partOfSpeech, translation, definition, exampleSentence, exampleTranslation.
+
       Rules:
       - word must remain a stable lowercase English object key when possible.
-      - displayWord, phonetic, partOfSpeech, and exampleSentence must use the target language.
-      - If target language is English, phonetic must be IPA.
-      - If target language is Chinese, phonetic must be pinyin.
-      - If target language is Japanese, phonetic must be romaji, not kana.
-      - translation, definition, and exampleTranslation must use the source language.
-      - Keep all fields concise and suitable for a mobile flash card.
+      - displayWord, phonetic, partOfSpeech, and exampleSentence use the target language.
+      - translation, definition, and exampleTranslation use the source/native language.
+      - If target language is English, phonetic must be standard IPA.
+      - If target language is Chinese, phonetic must be pinyin with tone marks.
+      - If target language is Japanese, phonetic must include kana plus romaji, for example "ボトル / botoru".
+      - definition is a professional concise meaning, not a casual one-word translation.
+      - exampleSentence must be natural, short, and object-scene oriented.
+      - Keep the result suitable for a mobile vocabulary card.

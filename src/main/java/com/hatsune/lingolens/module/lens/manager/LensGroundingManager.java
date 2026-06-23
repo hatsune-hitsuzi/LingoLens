@@ -22,31 +22,44 @@ public class LensGroundingManager {
 
     private static final int MAX_NODES = 6;
     private static final String SYSTEM_PROMPT = """
-            System: You are a strict, structured Multimodal Grounding API Gateway.
+            You are Gemma-3n-e2b-it working as a fast structured multimodal grounding gateway.
 
-            CRITICAL LIMITATION:
-            Identify AT MOST 6 of the most prominent, clear, and distinct physical objects
-            in the image. Do not analyze background noise, minor cables, or trivial details.
-            Focus only on the top 6 main subjects.
+            Goal:
+            Identify AT MOST 6 prominent, clear, distinct physical objects in the image.
+            Return lightweight trilingual labels and visual grounding polygons only.
 
-            SCHEMA:
-            [
+            Output schema:
+            {
+              "nodes": [
               {
                 "id": "stable-lowercase-english-object-key",
-                "polygon": [[10,20],[35,18],[38,46],[12,48]]
+                "polygon": [[10,20],[35,18],[38,46],[12,48]],
+                "labels": {
+                  "en": "figurine",
+                  "zh": "手办",
+                  "ja": "フィギュア"
+                },
+                "phonetics": {
+                  "en": "/ˈfɪɡjərɪn/",
+                  "zh": "shǒu bàn",
+                  "ja": "figyua"
+                }
               }
-            ]
+              ]
+            }
 
-            FIELD RULE:
-            id must be the object noun in stable lowercase English, for example
-            "figurine", "bottle", "keyboard", "monitor".
-            polygon coordinates must be normalized percentages from 0 to 100.
-            Do not translate. Do not generate phonetics. Do not generate examples.
+            Rules:
+            - id is an English lowercase object noun, for example "figurine", "bottle", "keyboard".
+            - polygon coordinates are normalized percentages from 0 to 100.
+            - labels.en must be English, labels.zh must be real Simplified Chinese, labels.ja must be real Japanese.
+            - phonetics.en uses IPA when known, phonetics.zh uses pinyin, phonetics.ja uses romaji.
+            - If phonetic is uncertain, use an empty string, but never invent markdown or prose.
+            - Ignore background noise, minor cables, and trivial details.
+            - Output raw JSON object only.
+            - No prose, explanations, markdown, comments, or chain-of-thought.
+            - The first character must be "{".
 
-            OUTPUT RULE:
-            DO NOT think. DO NOT explain. DO NOT output any introduction or chain-of-thought text.
-            Your very first output character MUST be '['. Output raw JSON Array matching the
-            required schema directly, or the system will crash immediately!
+            Do not include any fields except nodes, id, polygon, labels, and phonetics.
             """;
 
     private final LingoLensLlmClient llmClient;
@@ -58,10 +71,12 @@ public class LensGroundingManager {
                 sourceLanguage, targetLanguage, StringUtils.hasText(imageReference));
         String userPrompt = """
                 Analyze this frozen camera frame now.
-                Return only id and polygon for at most 6 prominent physical objects.
-                Do not translate. Do not include phonetics. Do not include examples.
-                The first output character must be '['.
-                """.formatted(sourceLanguage, targetLanguage);
+                Return at most 6 prominent physical objects with polygon, English/Chinese/Japanese labels, and compact phonetics.
+                
+                REMINDER: Follow the System instructions.
+                NO prose. NO explanations. NO Markdown blocks.
+                The first output character must be '{'.
+                """;
         JSONArray generated = llmClient.completeJsonArray(
                 SYSTEM_PROMPT,
                 userPrompt,
@@ -69,7 +84,7 @@ public class LensGroundingManager {
         Map<String, LensGroundingNodeDTO> deduplicated = new LinkedHashMap<>();
         for (int index = 0; index < generated.size() && deduplicated.size() < MAX_NODES; index++) {
             JSONObject item = generated.getJSONObject(index);
-            LensGroundingNodeDTO node = normalizeNode(item);
+            LensGroundingNodeDTO node = normalizeNode(item, sourceLanguage, targetLanguage);
             if (node != null) {
                 deduplicated.put(node.getId(), node);
             }
@@ -81,11 +96,13 @@ public class LensGroundingManager {
         return List.copyOf(deduplicated.values());
     }
 
-    private LensGroundingNodeDTO normalizeNode(JSONObject item) {
+    private LensGroundingNodeDTO normalizeNode(JSONObject item, String sourceLanguage, String targetLanguage) {
         if (item == null) {
             return null;
         }
-        String id = normalizeId(item.getString("id"));
+        Map<String, String> labels = normalizeStringMap(item.getJSONObject("labels"));
+        Map<String, String> phonetics = normalizeStringMap(item.getJSONObject("phonetics"));
+        String id = normalizeId(defaultText(item.getString("id"), labels.get("en")));
         List<List<Double>> polygon = normalizePolygon(item.getJSONArray("polygon"));
         if (!StringUtils.hasText(id)
                 || polygon.size() < 3) {
@@ -95,10 +112,39 @@ public class LensGroundingManager {
         return LensGroundingNodeDTO.builder()
                 .id(id)
                 .polygon(polygon)
-                .learningWord(id)
-                .learningPhonetic("")
-                .nativeTranslation(id)
+                .learningWord(languageValue(labels, targetLanguage, id))
+                .learningPhonetic(languageValue(phonetics, targetLanguage, ""))
+                .nativeTranslation(languageValue(labels, sourceLanguage, id))
+                .labels(labels)
+                .phonetics(phonetics)
                 .build();
+    }
+
+    private Map<String, String> normalizeStringMap(JSONObject object) {
+        Map<String, String> result = new LinkedHashMap<>();
+        if (object == null) {
+            return result;
+        }
+        for (String key : List.of("en", "zh", "ja")) {
+            String value = trim(object.getString(key));
+            if (StringUtils.hasText(value)) {
+                result.put(key, value);
+            }
+        }
+        return result;
+    }
+
+    private String languageValue(Map<String, String> values, String language, String fallback) {
+        if (values == null || values.isEmpty()) {
+            return fallback;
+        }
+        String key = contentLanguage(language);
+        String value = values.get(key);
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        value = values.get("en");
+        return StringUtils.hasText(value) ? value : fallback;
     }
 
     private List<List<Double>> normalizePolygon(JSONArray polygon) {
@@ -137,5 +183,23 @@ public class LensGroundingManager {
 
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : "";
+    }
+
+    private String defaultText(String value, String defaultValue) {
+        return StringUtils.hasText(value) ? value.trim() : defaultValue;
+    }
+
+    private String contentLanguage(String language) {
+        if (!StringUtils.hasText(language)) {
+            return "en";
+        }
+        String normalized = language.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("zh") || normalized.contains("chinese")) {
+            return "zh";
+        }
+        if (normalized.startsWith("ja") || normalized.startsWith("jp") || normalized.contains("japanese")) {
+            return "ja";
+        }
+        return "en";
     }
 }

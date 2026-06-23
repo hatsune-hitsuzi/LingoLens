@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -18,4 +19,8 @@ public class LensGroundingNodeDTO {
     private String learningPhonetic;
 
     private String nativeTranslation;
+
+    private Map<String, String> labels;
+
+    private Map<String, String> phonetics;
 }

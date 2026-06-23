@@ -52,19 +52,113 @@ public class LingoLensLlmProperties {
 
     private String wordSystemPrompt = "";
 
+    private String groundingInvokeUrl = "";
+
+    private String groundingAuthorization = "";
+
+    private String groundingApiKey = "";
+
+    private String groundingModel = "gemma-3n-e2b-it";
+
+    private int groundingMaxTokens = 1200;
+
+    private double groundingTemperature = 0.0D;
+
+    private String enrichmentInvokeUrl = "";
+
+    private String enrichmentAuthorization = "";
+
+    private String enrichmentApiKey = "";
+
+    private String enrichmentModel = "MiniMax-M3";
+
+    private int enrichmentMaxTokens = 2400;
+
+    private double enrichmentTemperature = 0.1D;
+
     public String endpoint() {
         return StringUtils.hasText(invokeUrl) ? invokeUrl.trim() : baseUrl.trim();
     }
 
     public String authorizationHeader() {
-        if (StringUtils.hasText(authorization)) {
-            String value = authorization.trim();
+        return authorizationHeader(authorization, apiKey);
+    }
+
+    public String groundingEndpoint() {
+        return endpoint(groundingInvokeUrl);
+    }
+
+    public String groundingAuthorizationHeader() {
+        return authorizationHeader(groundingAuthorization, groundingApiKey);
+    }
+
+    public String groundingModel() {
+        return StringUtils.hasText(groundingModel) ? groundingModel.trim() : model;
+    }
+
+    public int groundingMaxTokens() {
+        return groundingMaxTokens > 0 ? groundingMaxTokens : maxTokens;
+    }
+
+    public double groundingTemperature() {
+        return groundingTemperature;
+    }
+
+    public boolean groundingAvailable() {
+        return enabled
+                && StringUtils.hasText(groundingEndpoint())
+                && StringUtils.hasText(groundingAuthorizationHeader());
+    }
+
+    public String enrichmentEndpoint() {
+        return endpoint(enrichmentInvokeUrl);
+    }
+
+    public String enrichmentAuthorizationHeader() {
+        return authorizationHeader(enrichmentAuthorization, enrichmentApiKey);
+    }
+
+    public String enrichmentModel() {
+        return StringUtils.hasText(enrichmentModel) ? enrichmentModel.trim() : model;
+    }
+
+    public int enrichmentMaxTokens() {
+        return enrichmentMaxTokens > 0 ? enrichmentMaxTokens : maxTokens;
+    }
+
+    public double enrichmentTemperature() {
+        return enrichmentTemperature;
+    }
+
+    public boolean enrichmentAvailable() {
+        return enabled
+                && StringUtils.hasText(enrichmentEndpoint())
+                && StringUtils.hasText(enrichmentAuthorizationHeader());
+    }
+
+    private String endpoint(String profileInvokeUrl) {
+        if (StringUtils.hasText(profileInvokeUrl)) {
+            return profileInvokeUrl.trim();
+        }
+        return endpoint();
+    }
+
+    private String authorizationHeader(String profileAuthorization, String profileApiKey) {
+        if (StringUtils.hasText(profileAuthorization) || StringUtils.hasText(profileApiKey)) {
+            return authorizationHeaderValue(profileAuthorization, profileApiKey);
+        }
+        return authorizationHeaderValue(authorization, apiKey);
+    }
+
+    private String authorizationHeaderValue(String authorizationValue, String apiKeyValue) {
+        if (StringUtils.hasText(authorizationValue)) {
+            String value = authorizationValue.trim();
             return value.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
                     ? value
                     : "Bearer " + value;
         }
-        if (StringUtils.hasText(apiKey)) {
-            return "Bearer " + apiKey.trim();
+        if (StringUtils.hasText(apiKeyValue)) {
+            return "Bearer " + apiKeyValue.trim();
         }
         return "";
     }
