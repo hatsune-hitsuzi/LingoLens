@@ -33,7 +33,7 @@ public class LensGroundingManager {
             Stream results immediately. Output one complete JSON object per line as soon as each object is ready.
 
             Output schema for EACH LINE:
-            {"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"手办","ja":"フィギュア"},"phonetics":{"en":"/ˈfɪɡjərɪn/","zh":"shǒu bàn","ja":"figyua"}}
+            {"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"simplified-chinese-noun","ja":"japanese-noun"}}
 
             Coordinate rules:
             - polygon MUST use normalized percentage coordinates from 0 to 100.
@@ -45,8 +45,7 @@ public class LensGroundingManager {
             - labels.en must be lowercase English object words.
             - labels.zh must be real Simplified Chinese.
             - labels.ja must be real Japanese.
-            - phonetics.en uses IPA when known, phonetics.zh uses pinyin, phonetics.ja uses romaji.
-            - If phonetic is uncertain, use an empty string.
+            - Do NOT output phonetics. The server generates Chinese pinyin and Japanese romaji locally.
 
             Format rules:
             - One JSON object per line.
@@ -62,19 +61,23 @@ public class LensGroundingManager {
             Output raw JSON object only:
             {
               "nodes": [
-                {"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"手办","ja":"フィギュア"},"phonetics":{"en":"/ˈfɪɡjərɪn/","zh":"shǒu bàn","ja":"figyua"}}
+                {"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"simplified-chinese-noun","ja":"japanese-noun"}}
               ]
             }
 
             Rules:
             - polygon MUST use normalized percentage coordinates from 0 to 100.
             - Do NOT output id.
+            - Do NOT output phonetics.
             - labels.en is the lowercase English identifier.
+            - labels.zh must be real Simplified Chinese.
+            - labels.ja must be real Japanese.
             - The first character must be "{".
             - No prose, explanations, markdown, comments, or chain-of-thought.
             """;
 
     private final LingoLensLlmClient llmClient;
+    private final GroundingPhoneticService phoneticService;
 
     public List<LensGroundingNodeDTO> recognize(String imageReference,
                                                 String sourceLanguage,
@@ -85,7 +88,8 @@ public class LensGroundingManager {
                 sourceLanguage, targetLanguage, StringUtils.hasText(imageReference));
         String userPrompt = """
                 Analyze this frozen camera frame now.
-                Return at most 6 prominent physical objects with percentage polygon, English/Chinese/Japanese labels, and compact phonetics.
+                Return at most 6 prominent physical objects with percentage polygon and English/Chinese/Japanese labels.
+                Do not include id or phonetics.
 
                 REMINDER: Follow the System instructions.
                 NO prose. NO explanations. NO Markdown blocks.
@@ -122,9 +126,10 @@ public class LensGroundingManager {
                 Analyze this frozen camera frame now.
                 Output each object immediately as ONE JSON object per line.
                 Coordinates must be percentage values from 0 to 100, never pixels.
+                Output labels only; do not output id or phonetics.
 
                 REMINDER:
-                No id field. No prose. No markdown. No JSON array.
+                No prose. No markdown. No JSON array.
                 First output line must start with "{".
                 """;
         Set<String> emitted = new HashSet<>();
@@ -171,7 +176,9 @@ public class LensGroundingManager {
             return null;
         }
         Map<String, String> labels = normalizeStringMap(item.getJSONObject("labels"));
-        Map<String, String> phonetics = normalizeStringMap(item.getJSONObject("phonetics"));
+        Map<String, String> phonetics = phoneticService.enrich(
+                labels,
+                normalizeStringMap(item.getJSONObject("phonetics")));
         String id = normalizeId(defaultText(item.getString("id"), labels.get("en")));
         List<List<Double>> polygon = normalizePolygon(item.getJSONArray("polygon"), imageWidth, imageHeight);
         if (!StringUtils.hasText(id) || polygon.size() < 3) {

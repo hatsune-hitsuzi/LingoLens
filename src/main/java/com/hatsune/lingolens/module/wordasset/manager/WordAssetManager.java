@@ -207,6 +207,19 @@ public class WordAssetManager {
         }
     }
 
+    public boolean hasLlmBackedAsset(String word) {
+        if (!StringUtils.hasText(word)) {
+            return false;
+        }
+        WordAssetDO asset = findByWordKey(normalizeKey(word));
+        if (asset == null) {
+            return false;
+        }
+        return ENRICHMENT_STATUS_ENRICHED.equals(asset.getEnrichmentStatus())
+                || ASSET_SOURCE_LLM.equals(asset.getAssetSource())
+                || ASSET_SOURCE_LLM_IMAGE.equals(asset.getAssetSource());
+    }
+
     private boolean shouldEnrichAsset(WordAssetDO asset, String sourceLanguage, String targetLanguage) {
         return ASSET_SOURCE_SEED.equals(asset.getAssetSource())
                 || !hasPayload(asset, sourceLanguage)

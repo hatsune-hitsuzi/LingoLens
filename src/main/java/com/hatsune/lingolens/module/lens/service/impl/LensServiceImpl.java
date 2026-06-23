@@ -43,6 +43,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author hatsune_hitsuzi
@@ -160,13 +161,14 @@ public class LensServiceImpl implements LensService {
     public ResponseBodyEmitter recognizeGroundingStream(@RequestBody String requestJson) {
         log.info("lens grounding stream request, requestJson={}",
                 commonTools.maskSensitiveJson(requestJson, "imageBase64"));
-        ResponseBodyEmitter emitter = new ResponseBodyEmitter(60_000L);
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter(240_000L);
         try {
             LensRecognizeRequest request = commonTools.parseJsonAllowBlank(
                     requestJson, LensRecognizeRequest.class);
             commonTools.validateByJsr303(request);
             normalizeRecognizeRequest(request);
             Assert.isTrue(hasImagePayload(request), "image payload must not be blank");
+            sendEmitterLine(emitter, "# stream-start");
             CompletableFuture.runAsync(() -> streamGroundingNodes(request, emitter));
         } catch (BizException | IllegalArgumentException e) {
             completeEmitterWithLine(emitter, "# error: " + e.getMessage());
@@ -282,6 +284,10 @@ public class LensServiceImpl implements LensService {
 
     private void streamGroundingNodes(LensRecognizeRequest request, ResponseBodyEmitter emitter) {
         List<LensGroundingNodeDTO> emittedNodes = new ArrayList<>();
+        AtomicBoolean emitterOpen = new AtomicBoolean(true);
+        emitter.onTimeout(() -> emitterOpen.set(false));
+        emitter.onCompletion(() -> emitterOpen.set(false));
+        emitter.onError(error -> emitterOpen.set(false));
         try {
             ImageDimensions dimensions = imageDimensions(request);
             lensGroundingManager.recognizeStream(
@@ -291,18 +297,28 @@ public class LensServiceImpl implements LensService {
                     dimensions.width(),
                     dimensions.height(),
                     node -> {
+                        if (!emitterOpen.get()) {
+                            return;
+                        }
                         try {
                             emittedNodes.add(node);
                             emitter.send(com.alibaba.fastjson2.JSON.toJSONString(node) + "\n", MediaType.TEXT_PLAIN);
                         } catch (Exception sendError) {
-                            throw new IllegalStateException(sendError);
+                            emitterOpen.set(false);
+                            log.debug("lens grounding stream send skipped, emitterClosed=true");
                         }
                     });
             scheduleGroundedWordAssetWarmup(emittedNodes);
-            emitter.complete();
+            if (emitterOpen.get()) {
+                emitter.complete();
+            }
         } catch (Exception e) {
-            log.warn("lens grounding stream emit failed", e);
-            emitter.completeWithError(e);
+            if (emitterOpen.get()) {
+                log.warn("lens grounding stream emit failed", e);
+                emitter.completeWithError(e);
+            } else {
+                log.debug("lens grounding stream finished after emitter closed");
+            }
         }
     }
 
@@ -381,6 +397,14 @@ public class LensServiceImpl implements LensService {
             emitter.complete();
         } catch (Exception e) {
             emitter.completeWithError(e);
+        }
+    }
+
+    private void sendEmitterLine(ResponseBodyEmitter emitter, String line) {
+        try {
+            emitter.send(line + "\n", MediaType.TEXT_PLAIN);
+        } catch (Exception e) {
+            log.debug("lens stream heartbeat skipped", e);
         }
     }
 

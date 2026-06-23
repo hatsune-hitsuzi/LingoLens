@@ -54,7 +54,15 @@ public class WordAssetWarmupManager {
         }
         log.info("word asset warmup start, wordCount={}, wordKeys={}", wordKeys.size(), wordKeys);
         for (String wordKey : wordKeys) {
+            if (wordAssetManager.hasLlmBackedAsset(wordKey)) {
+                log.info("word asset warmup skipped, reason=already_llm_backed, wordKey={}", wordKey);
+                continue;
+            }
             for (LanguagePair pair : CORE_LANGUAGE_PAIRS) {
+                if (wordAssetManager.hasLlmBackedAsset(wordKey)) {
+                    log.info("word asset warmup stop remaining pairs, reason=already_llm_backed, wordKey={}", wordKey);
+                    break;
+                }
                 try {
                     redisDistributedLock.execute(
                             RedisKeyConstant.WORD_ASSET_RESOLVE_LOCK,
@@ -77,7 +85,9 @@ public class WordAssetWarmupManager {
                 }
             }
             try {
-                wordAssetManager.markWordEnriched(wordKey);
+                if (wordAssetManager.hasLlmBackedAsset(wordKey)) {
+                    wordAssetManager.markWordEnriched(wordKey);
+                }
             } catch (Exception e) {
                 log.warn("word asset warmup source mark skipped, wordKey={}", wordKey, e);
             }
