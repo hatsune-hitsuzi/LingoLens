@@ -58,7 +58,7 @@ public class LingoLensLlmProperties {
 
     private String groundingApiKey = "";
 
-    private String groundingModel = "gemma-3n-e2b-it";
+    private String groundingModel = "google/gemma-3n-e2b-it";
 
     private int groundingMaxTokens = 1200;
 
