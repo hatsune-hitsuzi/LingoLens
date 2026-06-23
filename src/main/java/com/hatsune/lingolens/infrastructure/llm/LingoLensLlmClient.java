@@ -104,10 +104,10 @@ public class LingoLensLlmClient {
         }
         try {
             JSONObject request = buildRequest(systemPrompt, userPrompt, imageUrl);
-            request.remove("response_format");
+            request.put("response_format", Map.of("type", "json_object"));
             request.put("stream", false);
             request.put("temperature", 0);
-            request.put("max_tokens", Math.min(properties.getMaxTokens(), 1200));
+            request.put("max_tokens", Math.min(Math.max(properties.getMaxTokens(), 2400), 4000));
             Instant start = Instant.now();
             log.info("llm grounding request start, model={}, endpoint={}, imagePresent={}, maxTokens={}, temperature={}, systemPromptLength={}, userPromptLength={}",
                     properties.getModel(),
@@ -136,6 +136,9 @@ public class LingoLensLlmClient {
             JSONArray parsed = parseChatJsonArray(response.body());
             log.info("llm grounding request success, status={}, elapsedMillis={}, parsedCount={}, contentSnippet={}",
                     response.statusCode(), elapsedMillis, parsed.size(), snippet(content));
+            if (!StringUtils.hasText(content)) {
+                log.warn("llm grounding response content empty, rawBodySnippet={}", snippet(response.body()));
+            }
             return parsed;
         } catch (Exception e) {
             log.warn("llm grounding request failed", e);
@@ -257,14 +260,67 @@ public class LingoLensLlmClient {
         JSONObject body = JSON.parseObject(responseBody);
         JSONArray choices = body.getJSONArray("choices");
         if (choices == null || choices.isEmpty()) {
+            return firstText(body.get("content"), body.get("output_text"), body.get("text"));
+        }
+        JSONObject choice = choices.getJSONObject(0);
+        JSONObject message = choice.getJSONObject("message");
+        if (message != null) {
+            String content = extractContent(message.get("content"));
+            if (StringUtils.hasText(content)) {
+                return content;
+            }
+            content = firstText(
+                    message.get("output_text"),
+                    message.get("text"),
+                    message.get("reasoning_content")
+            );
+            if (StringUtils.hasText(content)) {
+                return content;
+            }
+        }
+        return firstText(choice.get("text"), choice.get("content"));
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            String text = extractContent(value);
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+        }
+        return "";
+    }
+
+    private String extractContent(Object value) {
+        if (value == null) {
             return "";
         }
-        JSONObject message = choices.getJSONObject(0).getJSONObject("message");
-        if (message == null) {
-            return "";
+        if (value instanceof String text) {
+            return StringUtils.hasText(text) ? text : "";
         }
-        String content = message.getString("content");
-        return StringUtils.hasText(content) ? content : "";
+        if (value instanceof JSONArray array) {
+            StringBuilder builder = new StringBuilder();
+            for (int index = 0; index < array.size(); index++) {
+                String itemText = extractContent(array.get(index));
+                if (StringUtils.hasText(itemText)) {
+                    builder.append(itemText);
+                }
+            }
+            return builder.toString();
+        }
+        if (value instanceof JSONObject object) {
+            String text = object.getString("text");
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+            text = object.getString("content");
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+            text = object.getString("value");
+            return StringUtils.hasText(text) ? text : "";
+        }
+        return "";
     }
 
     private void streamSseContentLines(InputStream body, Consumer<String> onLine) throws Exception {

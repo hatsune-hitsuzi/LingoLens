@@ -20,34 +20,43 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LensGroundingManager {
 
-    private static final int MAX_NODES = 8;
+    private static final int MAX_NODES = 32;
     private static final String SYSTEM_PROMPT = """
-            You are a fast visual grounding assistant for a spatial vocabulary app.
-            Analyze the frozen camera photo and return only representative physical objects
-            that are useful for memory-palace vocabulary review.
+            You are a fast general-purpose visual grounding assistant.
+            Analyze the frozen camera photo and return every visible physical object
+            that you can confidently identify and localize.
 
             Requirements:
-            1. Return 3-8 clear concrete objects. Avoid large background surfaces such as wall,
-               floor, ceiling, table, counter, sky, screen background, or room.
-            2. For every object, return a polygon in normalized percentage coordinates [0,100].
+            1. Return all visible physical objects you can identify. Do not filter by
+               learning value, category, size, or importance.
+            2. Include ordinary objects, background objects, furniture, surfaces,
+               decorations, screens, figures, toys, containers, cables, tools,
+               stationery, clothing, food, and any other visible physical item.
+            3. Do not prioritize one category over another. Do not skip an object just
+               because it is not a typical vocabulary-learning object.
+            4. For every object, return a polygon in normalized percentage coordinates [0,100].
                The frontend will draw the polygon directly.
-            3. id must be a stable lowercase English object key.
-            4. learningWord must use the requested target learning language.
-            5. nativeTranslation must use the requested native/source language.
-            6. learningPhonetic must contain IPA for English, pinyin for Chinese, or romaji for Japanese.
-            7. Deduplicate objects. Return the most central/visible instance when uncertain.
+            5. id must be a stable lowercase English object key.
+            6. learningWord must use the requested target learning language.
+            7. nativeTranslation must use the requested native/source language.
+            8. learningPhonetic must contain IPA for English, pinyin for Chinese, or romaji for Japanese.
+            9. Deduplicate the same physical instance. If there are multiple instances
+               of the same object class, return each visible instance with a stable id
+               such as "bottle-1", "bottle-2".
 
             Output rules:
-            Return a raw JSON Array only. No markdown. No explanation. No wrapper object.
-            [
-              {
-                "id": "laptop",
-                "polygon": [[10,20],[35,18],[38,46],[12,48]],
-                "learningWord": "laptop",
-                "learningPhonetic": "/laptop/",
-                "nativeTranslation": "notebook computer"
-              }
-            ]
+            Return a raw JSON object only. No markdown. No explanation.
+            {
+              "nodes": [
+                {
+                  "id": "laptop",
+                  "polygon": [[10,20],[35,18],[38,46],[12,48]],
+                  "learningWord": "laptop",
+                  "learningPhonetic": "/laptop/",
+                  "nativeTranslation": "notebook computer"
+                }
+              ]
+            }
             """;
 
     private final LingoLensLlmClient llmClient;
@@ -61,7 +70,9 @@ public class LensGroundingManager {
                 Analyze this frozen camera frame now.
                 Native/source language: %s
                 Target learning language: %s
-                Return 3-8 clear physical objects using the required JSON Array schema.
+                learningWord must be written in the target learning language.
+                nativeTranslation must be written in the native/source language.
+                Return every visible physical object using the required {"nodes": [...]} schema.
                 """.formatted(sourceLanguage, targetLanguage);
         JSONArray generated = llmClient.completeJsonArray(
                 SYSTEM_PROMPT,
