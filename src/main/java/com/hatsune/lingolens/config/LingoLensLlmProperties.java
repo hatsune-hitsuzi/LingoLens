@@ -58,9 +58,9 @@ public class LingoLensLlmProperties {
 
     private String groundingApiKey = "";
 
-    private String groundingModel = "meta/llama-4-maverick-17b-128e-instruct";
+    private String groundingModel = "minimaxai/minimax-m3";
 
-    private int groundingMaxTokens = 1200;
+    private int groundingMaxTokens = 400;
 
     private double groundingTemperature = 0.0D;
 

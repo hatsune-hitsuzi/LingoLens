@@ -22,7 +22,7 @@ public class LensGroundingManager {
 
     private static final int MAX_NODES = 6;
     private static final String SYSTEM_PROMPT = """
-            You are llama-4-maverick working as a fast structured multimodal grounding gateway.
+            You are minimaxai/minimax-m3 working as a fast structured multimodal grounding gateway.
 
             Goal:
             Identify AT MOST 6 prominent, clear, distinct physical objects in the image.
