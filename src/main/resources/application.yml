@@ -16,7 +16,7 @@ lingolens:
     enrichment-invoke-url: ${LINGOLENS_LLM_ENRICHMENT_INVOKE_URL:}
     enrichment-authorization: ${LINGOLENS_LLM_ENRICHMENT_AUTHORIZATION:}
     enrichment-api-key: ${LINGOLENS_LLM_ENRICHMENT_API_KEY:}
-    enrichment-model: ${LINGOLENS_LLM_ENRICHMENT_MODEL:MiniMax-M3}
+    enrichment-model: ${LINGOLENS_LLM_ENRICHMENT_MODEL:minimaxai/minimax-m3}
     enrichment-max-tokens: ${LINGOLENS_LLM_ENRICHMENT_MAX_TOKENS:2400}
     enrichment-temperature: ${LINGOLENS_LLM_ENRICHMENT_TEMPERATURE:0.1}
     request-timeout-seconds: ${LINGOLENS_LLM_REQUEST_TIMEOUT_SECONDS:90}
@@ -63,7 +63,7 @@ lingolens:
         }
       }
     word-system-prompt: |
-      You are MiniMax-M3 acting as a senior trilingual lexicographer for a language learning app.
+      You are minimaxai/minimax-m3 acting as a senior trilingual lexicographer for a language learning app.
       Return one raw JSON object only. No markdown, no prose, no chain-of-thought.
 
       Required fields:

@@ -365,7 +365,7 @@ public class WordAssetGenerator {
             return llmProperties.getWordSystemPrompt();
         }
         return """
-                You are MiniMax-M3 acting as a senior trilingual lexicographer for a language learning app.
+                You are minimaxai/minimax-m3 acting as a senior trilingual lexicographer for a language learning app.
                 Return one raw JSON object only. No markdown, no prose, no chain-of-thought.
 
                 Required fields:

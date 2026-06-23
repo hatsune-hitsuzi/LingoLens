@@ -70,7 +70,7 @@ public class LingoLensLlmProperties {
 
     private String enrichmentApiKey = "";
 
-    private String enrichmentModel = "MiniMax-M3";
+    private String enrichmentModel = "minimaxai/minimax-m3";
 
     private int enrichmentMaxTokens = 2400;
 
