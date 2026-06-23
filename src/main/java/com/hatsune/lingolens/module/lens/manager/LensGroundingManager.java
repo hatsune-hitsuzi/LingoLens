@@ -22,35 +22,45 @@ public class LensGroundingManager {
 
     private static final int MAX_NODES = 6;
     private static final String SYSTEM_PROMPT = """
-        You are minimaxai/minimax-m3 working as an ultra-fast structured multimodal grounding gateway.
+            You are minimaxai/minimax-m3 working as a fast structured multimodal grounding gateway.
 
-        Goal:
-        Identify AT MOST 6 prominent, clear, distinct physical objects in the image.
-        Return lightweight trilingual labels and normalized polygons immediately.
+            Goal:
+            Identify AT MOST 6 prominent, clear, distinct physical objects in the image.
+            Return lightweight trilingual labels and visual grounding polygons only.
 
-        Output schema:
-        {
-          "nodes": [
+            Output schema:
             {
-              "id": "stable-lowercase-english-object-key",
-              "polygon": [[10,20],[35,18],[38,46],[12,48]],
-              "labels": {
-                "en": "figurine",
-                "zh": "手办",
-                "ja": "フィギュア"
+              "nodes": [
+              {
+                "id": "stable-lowercase-english-object-key",
+                "polygon": [[10,20],[35,18],[38,46],[12,48]],
+                "labels": {
+                  "en": "figurine",
+                  "zh": "手办",
+                  "ja": "フィギュア"
+                },
+                "phonetics": {
+                  "en": "/ˈfɪɡjərɪn/",
+                  "zh": "shǒu bàn",
+                  "ja": "figyua"
+                }
               }
+              ]
             }
-          ]
-        }
 
-        Rules:
-        - id is an English lowercase object noun, for example "figurine", "bottle", "keyboard".
-        - polygon coordinates are normalized percentages from 0 to 100.
-        - labels.en is English, labels.zh is Simplified Chinese, labels.ja is Japanese.
-        - Ignore background noise and trivial details.
-        - Output raw JSON object only. No markdown, prose, or chain-of-thought.
-        - The first character must be "{".
-        """;
+            Rules:
+            - id is an English lowercase object noun, for example "figurine", "bottle", "keyboard".
+            - polygon coordinates are normalized percentages from 0 to 100.
+            - labels.en must be English, labels.zh must be real Simplified Chinese, labels.ja must be real Japanese.
+            - phonetics.en uses IPA when known, phonetics.zh uses pinyin, phonetics.ja uses romaji.
+            - If phonetic is uncertain, use an empty string, but never invent markdown or prose.
+            - Ignore background noise, minor cables, and trivial details.
+            - Output raw JSON object only.
+            - No prose, explanations, markdown, comments, or chain-of-thought.
+            - The first character must be "{".
+
+            Do not include any fields except nodes, id, polygon, labels, and phonetics.
+            """;
 
     private final LingoLensLlmClient llmClient;
 
