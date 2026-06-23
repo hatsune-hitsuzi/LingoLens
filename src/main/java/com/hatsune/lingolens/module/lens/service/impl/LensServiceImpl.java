@@ -128,11 +128,13 @@ public class LensServiceImpl implements LensService {
                     imageReference(request),
                     request.getSourceLanguage(),
                     request.getTargetLanguage());
-            scheduleGroundedWordAssetWarmup(nodes);
-            return LensGroundingResponse.builder()
+            LensGroundingResponse response = LensGroundingResponse.builder()
                     .result(ResponseResult.success())
                     .nodes(nodes)
                     .build();
+            log.info("lens grounding response built, nodeCount={}, warmupMode=fire_and_forget", nodes.size());
+            scheduleGroundedWordAssetWarmup(nodes);
+            return response;
         } catch (BizException | IllegalArgumentException e) {
             return LensGroundingResponse.builder()
                     .result(ResponseResult.fail(e.getMessage()))
@@ -201,22 +203,26 @@ public class LensServiceImpl implements LensService {
     }
 
     private void scheduleGroundedWordAssetWarmup(List<LensGroundingNodeDTO> nodes) {
-        if (nodes == null || nodes.isEmpty()) {
-            log.info("lens grounding word asset warmup skipped, reason=no_nodes");
-            return;
+        try {
+            if (nodes == null || nodes.isEmpty()) {
+                log.info("lens grounding word asset warmup skipped, reason=no_nodes");
+                return;
+            }
+            List<String> wordKeys = nodes.stream()
+                    .map(LensGroundingNodeDTO::getId)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+            if (wordKeys.isEmpty()) {
+                log.info("lens grounding word asset warmup skipped, reason=no_word_keys");
+                return;
+            }
+            log.info("lens grounding word asset warmup fire-and-forget submit, count={}, wordKeys={}",
+                    wordKeys.size(), wordKeys);
+            wordAssetWarmupManager.warmupCoreLanguagePairs(wordKeys);
+        } catch (Exception e) {
+            log.warn("lens grounding word asset warmup submit failed, response is not blocked", e);
         }
-        List<String> wordKeys = nodes.stream()
-                .map(LensGroundingNodeDTO::getId)
-                .filter(StringUtils::hasText)
-                .distinct()
-                .toList();
-        if (wordKeys.isEmpty()) {
-            log.info("lens grounding word asset warmup skipped, reason=no_word_keys");
-            return;
-        }
-        log.info("lens grounding word asset warmup scheduled, count={}, wordKeys={}",
-                wordKeys.size(), wordKeys);
-        wordAssetWarmupManager.warmupCoreLanguagePairs(wordKeys);
     }
 
     private void validateRecognizeRequest(LensRecognizeRequest request) {

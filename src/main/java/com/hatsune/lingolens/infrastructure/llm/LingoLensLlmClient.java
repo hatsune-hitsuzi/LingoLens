@@ -106,8 +106,8 @@ public class LingoLensLlmClient {
             JSONObject request = buildRequest(systemPrompt, userPrompt, imageUrl);
             request.put("response_format", Map.of("type", "json_object"));
             request.put("stream", false);
-            request.put("temperature", 0);
-            request.put("max_tokens", Math.min(Math.max(properties.getMaxTokens(), 2400), 4000));
+            request.put("temperature", 0.0D);
+            request.put("max_tokens", 1500);
             Instant start = Instant.now();
             log.info("llm grounding request start, model={}, endpoint={}, imagePresent={}, maxTokens={}, temperature={}, systemPromptLength={}, userPromptLength={}",
                     properties.getModel(),
@@ -245,15 +245,119 @@ public class LingoLensLlmClient {
         if (!StringUtils.hasText(content)) {
             return new JSONArray();
         }
-        if (content.startsWith("[")) {
-            return JSON.parseArray(content);
+        if (content.startsWith("[") || content.contains("[")) {
+            JSONArray array = parsePossiblyTruncatedJsonArray(content);
+            if (array != null) {
+                return array;
+            }
         }
-        JSONObject wrapper = JSON.parseObject(content);
-        JSONArray nodes = wrapper.getJSONArray("nodes");
-        if (nodes == null) {
-            nodes = wrapper.getJSONArray("items");
+        try {
+            JSONObject wrapper = JSON.parseObject(content);
+            JSONArray nodes = wrapper.getJSONArray("nodes");
+            if (nodes == null) {
+                nodes = wrapper.getJSONArray("items");
+            }
+            if (nodes != null) {
+                return nodes;
+            }
+            String nodesText = wrapper.getString("nodes");
+            if (StringUtils.hasText(nodesText)) {
+                JSONArray repaired = parsePossiblyTruncatedJsonArray(nodesText);
+                return repaired == null ? new JSONArray() : repaired;
+            }
+        } catch (Exception e) {
+            JSONArray repaired = parsePossiblyTruncatedJsonArray(content);
+            if (repaired != null) {
+                return repaired;
+            }
+            log.warn("llm grounding json array parse failed, contentSnippet={}", snippet(content), e);
         }
-        return nodes == null ? new JSONArray() : nodes;
+        return new JSONArray();
+    }
+
+    private JSONArray parsePossiblyTruncatedJsonArray(String content) {
+        String repaired = repairJsonArray(content);
+        if (!StringUtils.hasText(repaired)) {
+            return null;
+        }
+        try {
+            return JSON.parseArray(repaired);
+        } catch (Exception e) {
+            log.warn("llm grounding repaired json array parse failed, repairedSnippet={}", snippet(repaired), e);
+            return null;
+        }
+    }
+
+    private String repairJsonArray(String content) {
+        if (!StringUtils.hasText(content)) {
+            return "";
+        }
+        String trimmed = content.trim();
+        int arrayStart = trimmed.indexOf('[');
+        if (arrayStart < 0) {
+            return "";
+        }
+        String source = trimmed.substring(arrayStart);
+        StringBuilder json = new StringBuilder();
+        List<Character> stack = new java.util.ArrayList<>();
+        boolean inString = false;
+        boolean escaping = false;
+        boolean arrayStarted = false;
+        for (int index = 0; index < source.length(); index++) {
+            char ch = source.charAt(index);
+            json.append(ch);
+            if (escaping) {
+                escaping = false;
+                continue;
+            }
+            if (ch == '\\' && inString) {
+                escaping = true;
+                continue;
+            }
+            if (ch == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) {
+                continue;
+            }
+            if (ch == '[' || ch == '{') {
+                stack.add(ch);
+                arrayStarted = true;
+                continue;
+            }
+            if (ch == ']' || ch == '}') {
+                popMatching(stack, ch);
+                if (arrayStarted && stack.isEmpty()) {
+                    return json.toString();
+                }
+            }
+        }
+        if (!arrayStarted) {
+            return "";
+        }
+        if (inString) {
+            json.append('"');
+        }
+        for (int index = stack.size() - 1; index >= 0; index--) {
+            char opening = stack.get(index);
+            json.append(opening == '{' ? '}' : ']');
+        }
+        return json.toString();
+    }
+
+    private void popMatching(List<Character> stack, char closing) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        char expectedOpening = closing == '}' ? '{' : '[';
+        for (int index = stack.size() - 1; index >= 0; index--) {
+            char opening = stack.get(index);
+            stack.remove(index);
+            if (opening == expectedOpening) {
+                return;
+            }
+        }
     }
 
     private String chatContent(String responseBody) {
