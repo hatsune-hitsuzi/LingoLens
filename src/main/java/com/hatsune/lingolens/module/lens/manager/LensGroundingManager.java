@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.hatsune.lingolens.infrastructure.llm.LingoLensLlmClient;
 import com.hatsune.lingolens.module.lens.dto.LensGroundingNodeDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -14,30 +15,37 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class LensGroundingManager {
 
     private static final int MAX_NODES = 8;
     private static final String SYSTEM_PROMPT = """
-            你是一个精准的视觉定位与双语言语记忆专家。请分析用户拍摄的这张 1024px 高清定格照片。
+            You are a fast visual grounding assistant for a spatial vocabulary app.
+            Analyze the frozen camera photo and return only representative physical objects
+            that are useful for memory-palace vocabulary review.
 
-            【任务要求】
-            1. 找出画面中所有最具代表性的、适合用来做空间记忆法背单词的核心实体物品，最多 8 个。
-            2. 为每个物品给出精确多边形边界。坐标必须归一化到 [0,100] 百分比坐标系。
-            3. id 必须是稳定的英文小写物品标识；learningWord 使用目标学习语言；nativeTranslation 使用母语。
-            4. learningPhonetic 统一承载英语 IPA、中文拼音或日语罗马音。
-            5. 同一个物品只返回一次，不返回墙壁、地板、天空等大面积环境背景。
+            Requirements:
+            1. Return 3-8 clear concrete objects. Avoid large background surfaces such as wall,
+               floor, ceiling, table, counter, sky, screen background, or room.
+            2. For every object, return a polygon in normalized percentage coordinates [0,100].
+               The frontend will draw the polygon directly.
+            3. id must be a stable lowercase English object key.
+            4. learningWord must use the requested target learning language.
+            5. nativeTranslation must use the requested native/source language.
+            6. learningPhonetic must contain IPA for English, pinyin for Chinese, or romaji for Japanese.
+            7. Deduplicate objects. Return the most central/visible instance when uncertain.
 
-            【严格输出】
-            只能返回纯 JSON Array，不要 Markdown、解释或前后导言：
+            Output rules:
+            Return a raw JSON Array only. No markdown. No explanation. No wrapper object.
             [
               {
                 "id": "laptop",
                 "polygon": [[10,20],[35,18],[38,46],[12,48]],
                 "learningWord": "laptop",
-                "learningPhonetic": "/ˈlæptɒp/",
-                "nativeTranslation": "笔记本电脑"
+                "learningPhonetic": "/laptop/",
+                "nativeTranslation": "notebook computer"
               }
             ]
             """;
@@ -45,12 +53,14 @@ public class LensGroundingManager {
     private final LingoLensLlmClient llmClient;
 
     public List<LensGroundingNodeDTO> recognize(String imageReference,
-                                                 String sourceLanguage,
-                                                 String targetLanguage) {
+                                                String sourceLanguage,
+                                                String targetLanguage) {
+        log.info("lens grounding llm recognize start, sourceLanguage={}, targetLanguage={}, imagePresent={}",
+                sourceLanguage, targetLanguage, StringUtils.hasText(imageReference));
         String userPrompt = """
                 Analyze this frozen camera frame now.
-                Native language: %s
-                Learning language: %s
+                Native/source language: %s
+                Target learning language: %s
                 Return 3-8 clear physical objects using the required JSON Array schema.
                 """.formatted(sourceLanguage, targetLanguage);
         JSONArray generated = llmClient.completeJsonArray(
@@ -65,6 +75,10 @@ public class LensGroundingManager {
                 deduplicated.put(node.getId(), node);
             }
         }
+        log.info("lens grounding llm recognize finished, rawCount={}, acceptedCount={}, ids={}",
+                generated.size(),
+                deduplicated.size(),
+                deduplicated.keySet());
         return List.copyOf(deduplicated.values());
     }
 
@@ -80,6 +94,8 @@ public class LensGroundingManager {
                 || !StringUtils.hasText(learningWord)
                 || !StringUtils.hasText(nativeTranslation)
                 || polygon.size() < 3) {
+            log.debug("lens grounding node dropped, id={}, learningWord={}, nativeTranslation={}, polygonSize={}",
+                    id, learningWord, nativeTranslation, polygon.size());
             return null;
         }
         return LensGroundingNodeDTO.builder()

@@ -45,8 +45,10 @@ public class WordAssetWarmupManager {
     public void warmupCoreLanguagePairs(Collection<String> words) {
         Set<String> wordKeys = normalizeWords(words);
         if (wordKeys.isEmpty()) {
+            log.info("word asset warmup skipped, reason=no_words");
             return;
         }
+        log.info("word asset warmup start, wordCount={}, wordKeys={}", wordKeys.size(), wordKeys);
         for (String wordKey : wordKeys) {
             for (LanguagePair pair : CORE_LANGUAGE_PAIRS) {
                 try {
@@ -60,6 +62,8 @@ public class WordAssetWarmupManager {
                             pair.sourceLanguage(),
                             pair.targetLanguage(),
                             wordKey);
+                    log.info("word asset warmup ok, wordKey={}, sourceLanguage={}, targetLanguage={}",
+                            wordKey, pair.sourceLanguage(), pair.targetLanguage());
                 } catch (BizException e) {
                     log.debug("word asset warmup already running, wordKey={}, sourceLanguage={}, targetLanguage={}",
                             wordKey, pair.sourceLanguage(), pair.targetLanguage());
@@ -74,6 +78,7 @@ public class WordAssetWarmupManager {
                 log.warn("word asset warmup source mark skipped, wordKey={}", wordKey, e);
             }
         }
+        log.info("word asset warmup finished, wordCount={}", wordKeys.size());
     }
 
     private Set<String> normalizeWords(Collection<String> words) {

@@ -12,6 +12,7 @@ import com.hatsune.lingolens.module.lens.bo.LensRecognizedWordBO;
 import com.hatsune.lingolens.module.lens.bo.LensWordInfoBO;
 import com.hatsune.lingolens.module.lens.dto.LensBoxDTO;
 import com.hatsune.lingolens.module.lens.dto.LensDetectedTagDTO;
+import com.hatsune.lingolens.module.lens.dto.LensGroundingNodeDTO;
 import com.hatsune.lingolens.module.lens.dto.LensGroundingResponse;
 import com.hatsune.lingolens.module.lens.dto.LensRecognizeRequest;
 import com.hatsune.lingolens.module.lens.dto.LensRecognizeResponse;
@@ -22,6 +23,7 @@ import com.hatsune.lingolens.module.lens.dto.LensWordInfoDTO;
 import com.hatsune.lingolens.module.lens.manager.LensGroundingManager;
 import com.hatsune.lingolens.module.lens.manager.LensManager;
 import com.hatsune.lingolens.module.lens.service.LensService;
+import com.hatsune.lingolens.module.wordasset.manager.WordAssetWarmupManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.Assert;
@@ -72,6 +74,7 @@ public class LensServiceImpl implements LensService {
     private final LingoLensLlmClient llmClient;
     private final CommonTools commonTools;
     private final RedisDistributedLock redisDistributedLock;
+    private final WordAssetWarmupManager wordAssetWarmupManager;
 
     @Override
     public LensRecognizeResponse recognize(@RequestBody String requestJson) {
@@ -121,12 +124,14 @@ public class LensServiceImpl implements LensService {
             commonTools.validateByJsr303(request);
             normalizeRecognizeRequest(request);
             Assert.isTrue(hasImagePayload(request), "image payload must not be blank");
+            List<LensGroundingNodeDTO> nodes = lensGroundingManager.recognize(
+                    imageReference(request),
+                    request.getSourceLanguage(),
+                    request.getTargetLanguage());
+            scheduleGroundedWordAssetWarmup(nodes);
             return LensGroundingResponse.builder()
                     .result(ResponseResult.success())
-                    .nodes(lensGroundingManager.recognize(
-                            imageReference(request),
-                            request.getSourceLanguage(),
-                            request.getTargetLanguage()))
+                    .nodes(nodes)
                     .build();
         } catch (BizException | IllegalArgumentException e) {
             return LensGroundingResponse.builder()
@@ -193,6 +198,25 @@ public class LensServiceImpl implements LensService {
         if (request.getDetectedTags() != null) {
             request.getDetectedTags().forEach(this::normalizeDetectedTag);
         }
+    }
+
+    private void scheduleGroundedWordAssetWarmup(List<LensGroundingNodeDTO> nodes) {
+        if (nodes == null || nodes.isEmpty()) {
+            log.info("lens grounding word asset warmup skipped, reason=no_nodes");
+            return;
+        }
+        List<String> wordKeys = nodes.stream()
+                .map(LensGroundingNodeDTO::getId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (wordKeys.isEmpty()) {
+            log.info("lens grounding word asset warmup skipped, reason=no_word_keys");
+            return;
+        }
+        log.info("lens grounding word asset warmup scheduled, count={}, wordKeys={}",
+                wordKeys.size(), wordKeys);
+        wordAssetWarmupManager.warmupCoreLanguagePairs(wordKeys);
     }
 
     private void validateRecognizeRequest(LensRecognizeRequest request) {

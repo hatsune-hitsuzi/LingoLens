@@ -18,6 +18,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -52,10 +53,22 @@ public class LingoLensLlmClient {
 
     public JSONObject completeJson(String systemPrompt, String userPrompt, String imageUrl) {
         if (!available()) {
+            log.warn("llm request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}",
+                    properties.isEnabled(),
+                    StringUtils.hasText(properties.endpoint()),
+                    StringUtils.hasText(properties.authorizationHeader()));
             return null;
         }
         try {
             JSONObject request = buildRequest(systemPrompt, userPrompt, imageUrl);
+            Instant start = Instant.now();
+            log.info("llm request start, model={}, endpoint={}, stream={}, imagePresent={}, systemPromptLength={}, userPromptLength={}",
+                    properties.getModel(),
+                    properties.endpoint(),
+                    request.getBooleanValue("stream"),
+                    StringUtils.hasText(imageUrl),
+                    safeLength(systemPrompt),
+                    safeLength(userPrompt));
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(properties.endpoint()))
                     .timeout(Duration.ofSeconds(normalizeTimeout(properties.getRequestTimeoutSeconds(), 90)))
@@ -65,11 +78,16 @@ public class LingoLensLlmClient {
                     .POST(HttpRequest.BodyPublishers.ofString(request.toJSONString()))
                     .build();
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            long elapsedMillis = Duration.between(start, Instant.now()).toMillis();
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.warn("llm request failed, status={}, body={}", response.statusCode(), response.body());
+                log.warn("llm request failed, status={}, elapsedMillis={}, body={}",
+                        response.statusCode(), elapsedMillis, response.body());
                 return null;
             }
-            return parseChatJson(response.body());
+            JSONObject parsed = parseChatJson(response.body());
+            log.info("llm request success, status={}, elapsedMillis={}, contentSnippet={}",
+                    response.statusCode(), elapsedMillis, snippet(chatContent(response.body())));
+            return parsed;
         } catch (Exception e) {
             log.warn("llm request failed", e);
             return null;
@@ -78,6 +96,10 @@ public class LingoLensLlmClient {
 
     public JSONArray completeJsonArray(String systemPrompt, String userPrompt, String imageUrl) {
         if (!available()) {
+            log.warn("llm grounding request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}",
+                    properties.isEnabled(),
+                    StringUtils.hasText(properties.endpoint()),
+                    StringUtils.hasText(properties.authorizationHeader()));
             return new JSONArray();
         }
         try {
@@ -86,6 +108,15 @@ public class LingoLensLlmClient {
             request.put("stream", false);
             request.put("temperature", 0);
             request.put("max_tokens", Math.min(properties.getMaxTokens(), 1200));
+            Instant start = Instant.now();
+            log.info("llm grounding request start, model={}, endpoint={}, imagePresent={}, maxTokens={}, temperature={}, systemPromptLength={}, userPromptLength={}",
+                    properties.getModel(),
+                    properties.endpoint(),
+                    StringUtils.hasText(imageUrl),
+                    request.getInteger("max_tokens"),
+                    request.getDouble("temperature"),
+                    safeLength(systemPrompt),
+                    safeLength(userPrompt));
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(properties.endpoint()))
                     .timeout(Duration.ofSeconds(normalizeTimeout(properties.getRequestTimeoutSeconds(), 90)))
@@ -95,11 +126,17 @@ public class LingoLensLlmClient {
                     .POST(HttpRequest.BodyPublishers.ofString(request.toJSONString()))
                     .build();
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            long elapsedMillis = Duration.between(start, Instant.now()).toMillis();
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                log.warn("llm grounding request failed, status={}, body={}", response.statusCode(), response.body());
+                log.warn("llm grounding request failed, status={}, elapsedMillis={}, body={}",
+                        response.statusCode(), elapsedMillis, response.body());
                 return new JSONArray();
             }
-            return parseChatJsonArray(response.body());
+            String content = chatContent(response.body());
+            JSONArray parsed = parseChatJsonArray(response.body());
+            log.info("llm grounding request success, status={}, elapsedMillis={}, parsedCount={}, contentSnippet={}",
+                    response.statusCode(), elapsedMillis, parsed.size(), snippet(content));
+            return parsed;
         } catch (Exception e) {
             log.warn("llm grounding request failed", e);
             return new JSONArray();
@@ -111,10 +148,21 @@ public class LingoLensLlmClient {
                                        String imageUrl,
                                        Consumer<String> onLine) {
         if (!available() || onLine == null) {
+            log.warn("llm stream request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}, hasLineConsumer={}",
+                    properties.isEnabled(),
+                    StringUtils.hasText(properties.endpoint()),
+                    StringUtils.hasText(properties.authorizationHeader()),
+                    onLine != null);
             return;
         }
         try {
             JSONObject request = buildStreamRequest(systemPrompt, userPrompt, imageUrl);
+            log.info("llm stream request start, model={}, endpoint={}, imagePresent={}, systemPromptLength={}, userPromptLength={}",
+                    properties.getModel(),
+                    properties.endpoint(),
+                    StringUtils.hasText(imageUrl),
+                    safeLength(systemPrompt),
+                    safeLength(userPrompt));
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(properties.endpoint()))
                     .timeout(Duration.ofSeconds(normalizeTimeout(properties.getStreamTimeoutSeconds(), 90)))
@@ -289,5 +337,17 @@ public class LingoLensLlmClient {
             return defaultValue;
         }
         return Math.min(timeoutSeconds, 180);
+    }
+
+    private int safeLength(String value) {
+        return value == null ? 0 : value.length();
+    }
+
+    private String snippet(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String compact = value.replaceAll("\\s+", " ").trim();
+        return compact.length() <= 500 ? compact : compact.substring(0, 500) + "...";
     }
 }
