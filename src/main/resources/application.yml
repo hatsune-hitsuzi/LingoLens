@@ -10,7 +10,7 @@ lingolens:
     grounding-invoke-url: ${LINGOLENS_LLM_GROUNDING_INVOKE_URL:}
     grounding-authorization: ${LINGOLENS_LLM_GROUNDING_AUTHORIZATION:}
     grounding-api-key: ${LINGOLENS_LLM_GROUNDING_API_KEY:}
-    grounding-model: ${LINGOLENS_LLM_GROUNDING_MODEL:google/gemma-3n-e2b-it}
+    grounding-model: ${LINGOLENS_LLM_GROUNDING_MODEL:meta/llama-4-maverick-17b-128e-instructt}
     grounding-max-tokens: ${LINGOLENS_LLM_GROUNDING_MAX_TOKENS:1200}
     grounding-temperature: ${LINGOLENS_LLM_GROUNDING_TEMPERATURE:0}
     enrichment-invoke-url: ${LINGOLENS_LLM_ENRICHMENT_INVOKE_URL:}

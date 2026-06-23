@@ -222,7 +222,7 @@ void dockerDeploy() {
                 -e LINGOLENS_LLM_ENABLED=true \\
                 -e LINGOLENS_LLM_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
                 -e LINGOLENS_LLM_GROUNDING_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
-                -e LINGOLENS_LLM_GROUNDING_MODEL=google/gemma-3n-e2b-it \\
+                -e LINGOLENS_LLM_GROUNDING_MODEL=meta/llama-4-maverick-17b-128e-instruct \\
                 -e LINGOLENS_LLM_GROUNDING_MAX_TOKENS=1200 \\
                 -e LINGOLENS_LLM_GROUNDING_TEMPERATURE=0 \\
                 -e LINGOLENS_LLM_ENRICHMENT_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
