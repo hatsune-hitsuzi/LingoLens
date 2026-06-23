@@ -183,7 +183,7 @@ public class WordAssetGenerator {
                 return llmWord;
             }
         }
-        return generate(wordKey, sourceLanguage, targetLanguage);
+        return generateFastSeed(wordKey, sourceLanguage, targetLanguage);
     }
 
     public GeneratedWordAssetBO generateFromImage(String imageUrl) {

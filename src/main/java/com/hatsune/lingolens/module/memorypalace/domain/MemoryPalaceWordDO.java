@@ -46,20 +46,11 @@ public class MemoryPalaceWordDO {
     @TableField("word_asset_id")
     private Long wordAssetId;
 
-    @TableField("slot_key")
-    private String slotKey;
+    @TableField("anchor_x_percent")
+    private Integer anchorXPercent;
 
-    @TableField("slot_name")
-    private String slotName;
-
-    @TableField("anchor_description")
-    private String anchorDescription;
-
-    @TableField("image_optimized")
-    private Boolean imageOptimized;
-
-    @TableField("image_upload_provider")
-    private String imageUploadProvider;
+    @TableField("anchor_y_percent")
+    private Integer anchorYPercent;
 
     @TableField(value = "word_key", exist = false)
     private String wordKey;

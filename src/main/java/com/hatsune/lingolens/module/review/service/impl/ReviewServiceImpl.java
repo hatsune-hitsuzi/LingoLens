@@ -14,6 +14,7 @@ import com.hatsune.lingolens.module.review.dto.ReviewCardsResponse;
 import com.hatsune.lingolens.module.review.dto.ReviewCountResponse;
 import com.hatsune.lingolens.module.review.manager.ReviewManager;
 import com.hatsune.lingolens.module.review.service.ReviewService;
+import com.hatsune.lingolens.module.wordasset.support.PronunciationUrlBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewManager reviewManager;
     private final CommonTools commonTools;
+    private final PronunciationUrlBuilder pronunciationUrlBuilder;
 
     @Override
     public ReviewCountResponse count(@RequestBody(required = false) String requestJson) {
@@ -124,7 +126,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .word(card.getWord())
                 .displayWord(card.getDisplayWord())
                 .phonetic(card.getPhonetic())
-                .pronunciationUrl(card.getPronunciationUrl())
+                .pronunciationUrl(pronunciationUrlBuilder.buildFromPath(card.getPronunciationUrl()))
                 .partOfSpeech(card.getPartOfSpeech())
                 .translation(card.getTranslation())
                 .definition(card.getDefinition())

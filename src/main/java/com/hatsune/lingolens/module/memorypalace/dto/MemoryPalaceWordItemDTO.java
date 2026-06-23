@@ -30,15 +30,9 @@ public class MemoryPalaceWordItemDTO {
      */
     private Long wordAssetId;
 
-    private String slotKey;
+    private Integer anchorXPercent;
 
-    private String slotName;
-
-    private String anchorDescription;
-
-    private Boolean imageOptimized;
-
-    private String imageUploadProvider;
+    private Integer anchorYPercent;
 
     /**
      * 单词原文。

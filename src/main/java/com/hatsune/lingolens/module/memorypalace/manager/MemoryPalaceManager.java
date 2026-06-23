@@ -7,6 +7,7 @@ import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceCreateBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceListBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordAddBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordPageBO;
+import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordMutationBO;
 import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceDO;
 import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceWordDO;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceListRequest;
@@ -66,11 +67,8 @@ public class MemoryPalaceManager {
             memoryPalaceWordMapper.updateByPrimaryKey(MemoryPalaceWordDO.builder()
                     .id(existedWord.getId())
                     .sourceImageUrl(request.getSourceImageUrl())
-                    .slotKey(buildSpatialSlotKey(request))
-                    .slotName(buildSpatialSlotName(request))
-                    .anchorDescription(buildSpatialAnchorDescription(request))
-                    .imageOptimized(Boolean.TRUE)
-                    .imageUploadProvider("mobile-compressed")
+                    .anchorXPercent(request.getXPercent())
+                    .anchorYPercent(request.getYPercent())
                     .updateTime(OffsetDateTime.now())
                     .build());
             arScanWordManager.recordWord(userPkId, palace.getId(), palace.getSceneName(), wordAssetId, request);
@@ -82,6 +80,32 @@ public class MemoryPalaceManager {
                     .build();
         }
 
+        MemoryPalaceWordDO latestWord = memoryPalaceWordMapper.selectLatestByAsset(
+                userPkId, wordAssetId);
+        if (latestWord != null) {
+            MemoryPalaceDO previousPalace = getUserPalace(userPkId, latestWord.getPalaceId());
+            memoryPalaceWordMapper.moveToPalace(userPkId, latestWord.getId(), palace.getId());
+            memoryPalaceWordMapper.updateByPrimaryKey(MemoryPalaceWordDO.builder()
+                    .id(latestWord.getId())
+                    .sourceImageUrl(request.getSourceImageUrl())
+                    .anchorXPercent(request.getXPercent())
+                    .anchorYPercent(request.getYPercent())
+                    .updateTime(OffsetDateTime.now())
+                    .build());
+            int previousCount = Math.max(0, defaultZero(previousPalace.getWordCount()) - 1);
+            int newCount = defaultZero(palace.getWordCount()) + 1;
+            updatePalaceWordCount(previousPalace.getId(), previousCount, null);
+            updatePalaceWordCount(palace.getId(), newCount, request.getSourceImageUrl());
+            arScanWordManager.recordWord(
+                    userPkId, palace.getId(), palace.getSceneName(), wordAssetId, request);
+            return MemoryPalaceWordAddBO.builder()
+                    .palaceId(palace.getId())
+                    .palaceWordId(latestWord.getId())
+                    .palaceWordCount(newCount)
+                    .added(true)
+                    .build();
+        }
+
         OffsetDateTime now = OffsetDateTime.now();
         Long palaceWordId = distributedIdGenerator.id(PALACE_WORD_ID_BIZ_TYPE);
         MemoryPalaceWordDO word = MemoryPalaceWordDO.builder()
@@ -90,11 +114,8 @@ public class MemoryPalaceManager {
                 .userPkId(userPkId)
                 .wordAssetId(wordAssetId)
                 .sourceImageUrl(request.getSourceImageUrl())
-                .slotKey(buildSpatialSlotKey(request))
-                .slotName(buildSpatialSlotName(request))
-                .anchorDescription(buildSpatialAnchorDescription(request))
-                .imageOptimized(Boolean.TRUE)
-                .imageUploadProvider("mobile-compressed")
+                .anchorXPercent(request.getXPercent())
+                .anchorYPercent(request.getYPercent())
                 .createTime(now)
                 .updateTime(now)
                 .build();
@@ -207,6 +228,86 @@ public class MemoryPalaceManager {
         return memoryPalaceMapper.deleteByUserAndId(userPkId, palaceId) > 0;
     }
 
+    public MemoryPalaceWordMutationBO deleteWord(Long userPkId, Long palaceWordId) {
+        MemoryPalaceWordDO word = getUserPalaceWord(userPkId, palaceWordId);
+        MemoryPalaceDO palace = getUserPalace(userPkId, word.getPalaceId());
+        int deleted = memoryPalaceWordMapper.deleteByUserAndId(userPkId, palaceWordId);
+        if (deleted < 1) {
+            throw new BizException("memory palace word not found");
+        }
+        int newCount = Math.max(0, defaultZero(palace.getWordCount()) - 1);
+        updatePalaceWordCount(palace.getId(), newCount, null);
+        if (defaultZero(memoryPalaceWordMapper.countByUserAndAsset(userPkId, word.getWordAssetId())) == 0) {
+            arScanWordManager.removeWord(userPkId, word.getWordAssetId());
+        }
+        return MemoryPalaceWordMutationBO.builder()
+                .palaceWordId(palaceWordId)
+                .sourcePalaceId(palace.getId())
+                .sourcePalaceWordCount(newCount)
+                .changed(true)
+                .build();
+    }
+
+    public MemoryPalaceWordMutationBO moveWord(Long userPkId,
+                                                Long palaceWordId,
+                                                Long targetPalaceId) {
+        MemoryPalaceWordDO word = getUserPalaceWord(userPkId, palaceWordId);
+        MemoryPalaceDO sourcePalace = getUserPalace(userPkId, word.getPalaceId());
+        MemoryPalaceDO targetPalace = getUserPalace(userPkId, targetPalaceId);
+        if (sourcePalace.getId().equals(targetPalace.getId())) {
+            return MemoryPalaceWordMutationBO.builder()
+                    .palaceWordId(word.getId())
+                    .sourcePalaceId(sourcePalace.getId())
+                    .targetPalaceId(targetPalace.getId())
+                    .sourcePalaceWordCount(defaultZero(sourcePalace.getWordCount()))
+                    .targetPalaceWordCount(defaultZero(targetPalace.getWordCount()))
+                    .changed(false)
+                    .build();
+        }
+
+        MemoryPalaceWordDO targetWord = memoryPalaceWordMapper.selectOne(MemoryPalaceWordDO.builder()
+                .userPkId(userPkId)
+                .palaceId(targetPalaceId)
+                .wordAssetId(word.getWordAssetId())
+                .build());
+        Long resultingWordId = word.getId();
+        int targetCount = defaultZero(targetPalace.getWordCount());
+        if (targetWord == null) {
+            int moved = memoryPalaceWordMapper.moveToPalace(userPkId, word.getId(), targetPalaceId);
+            if (moved < 1) {
+                throw new BizException("memory palace word not found");
+            }
+            targetCount++;
+        } else {
+            resultingWordId = targetWord.getId();
+            memoryPalaceWordMapper.updateByPrimaryKey(MemoryPalaceWordDO.builder()
+                    .id(targetWord.getId())
+                    .sourceImageUrl(word.getSourceImageUrl())
+                    .anchorXPercent(word.getAnchorXPercent())
+                    .anchorYPercent(word.getAnchorYPercent())
+                    .updateTime(OffsetDateTime.now())
+                    .build());
+            memoryPalaceWordMapper.deleteByUserAndId(userPkId, word.getId());
+        }
+
+        int sourceCount = Math.max(0, defaultZero(sourcePalace.getWordCount()) - 1);
+        updatePalaceWordCount(sourcePalace.getId(), sourceCount, null);
+        updatePalaceWordCount(targetPalace.getId(), targetCount, word.getSourceImageUrl());
+        arScanWordManager.moveWord(
+                userPkId,
+                word.getWordAssetId(),
+                targetPalace.getId(),
+                targetPalace.getSceneName());
+        return MemoryPalaceWordMutationBO.builder()
+                .palaceWordId(resultingWordId)
+                .sourcePalaceId(sourcePalace.getId())
+                .targetPalaceId(targetPalace.getId())
+                .sourcePalaceWordCount(sourceCount)
+                .targetPalaceWordCount(targetCount)
+                .changed(true)
+                .build();
+    }
+
     public List<MemoryPalaceDO> searchPalaces(Long userPkId, String keyword, int limit) {
         if (!StringUtils.hasText(keyword)) {
             return List.of();
@@ -286,6 +387,24 @@ public class MemoryPalaceManager {
         return palace;
     }
 
+    private MemoryPalaceWordDO getUserPalaceWord(Long userPkId, Long palaceWordId) {
+        MemoryPalaceWordDO word = memoryPalaceWordMapper.selectByPrimaryKey(
+                MemoryPalaceWordDO.builder().id(palaceWordId).build());
+        if (word == null || !userPkId.equals(word.getUserPkId())) {
+            throw new BizException("memory palace word not found");
+        }
+        return word;
+    }
+
+    private void updatePalaceWordCount(Long palaceId, int wordCount, String coverUrl) {
+        memoryPalaceMapper.updateByPrimaryKey(MemoryPalaceDO.builder()
+                .id(palaceId)
+                .wordCount(wordCount)
+                .coverUrl(coverUrl)
+                .updateTime(OffsetDateTime.now())
+                .build());
+    }
+
     private MemoryPalaceDO getOrCreatePalace(Long userPkId, MemoryPalaceWordAddRequest request) {
         String sceneName = normalizeSceneName(request.getSceneName());
         String sceneKey = normalizeKey(sceneName);
@@ -330,28 +449,6 @@ public class MemoryPalaceManager {
             return "asset:" + request.getWordAssetId();
         }
         return normalizeWordKey(request.getWord());
-    }
-
-    private String buildSpatialSlotKey(MemoryPalaceWordAddRequest request) {
-        if (request.getXPercent() == null || request.getYPercent() == null) {
-            return null;
-        }
-        return "ar:%02d:%02d".formatted(request.getXPercent(), request.getYPercent());
-    }
-
-    private String buildSpatialSlotName(MemoryPalaceWordAddRequest request) {
-        if (request.getXPercent() == null || request.getYPercent() == null) {
-            return null;
-        }
-        return "AR %d%% / %d%%".formatted(request.getXPercent(), request.getYPercent());
-    }
-
-    private String buildSpatialAnchorDescription(MemoryPalaceWordAddRequest request) {
-        if (request.getXPercent() == null || request.getYPercent() == null) {
-            return null;
-        }
-        return "Captured spatial anchor at x=%d%%, y=%d%% in the original scan photo."
-                .formatted(request.getXPercent(), request.getYPercent());
     }
 
     private Long resolveWordAssetId(Long userPkId, MemoryPalaceWordAddRequest request) {

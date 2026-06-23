@@ -2,6 +2,7 @@ package com.hatsune.lingolens.module.lens.service;
 
 import com.hatsune.lingolens.module.lens.dto.LensRecognizeResponse;
 import com.hatsune.lingolens.module.lens.dto.LensWordDetailResponse;
+import com.hatsune.lingolens.module.lens.dto.LensGroundingResponse;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,6 +21,9 @@ public interface LensService {
 
     @PostMapping(value = "/recognize/stream", produces = MediaType.TEXT_PLAIN_VALUE)
     ResponseBodyEmitter recognizeStream(@RequestBody String requestJson);
+
+    @PostMapping("/recognize/grounding")
+    LensGroundingResponse recognizeGrounding(@RequestBody String requestJson);
 
     @PostMapping("/word/detail")
     LensWordDetailResponse wordDetail(@RequestBody String requestJson);

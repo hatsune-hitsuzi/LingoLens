@@ -56,6 +56,29 @@ public class ArScanWordManager {
         return count == null ? 0 : count;
     }
 
+    public void removeWord(Long userPkId, Long wordAssetId) {
+        arScanWordMapper.deleteByUserAndAsset(userPkId, wordAssetId);
+    }
+
+    public void moveWord(Long userPkId,
+                         Long wordAssetId,
+                         Long palaceId,
+                         String sceneName) {
+        ArScanWordDO existedWord = arScanWordMapper.selectOne(ArScanWordDO.builder()
+                .userPkId(userPkId)
+                .wordAssetId(wordAssetId)
+                .build());
+        if (existedWord == null) {
+            return;
+        }
+        arScanWordMapper.updateByPrimaryKey(ArScanWordDO.builder()
+                .id(existedWord.getId())
+                .firstPalaceId(palaceId)
+                .sceneName(sceneName)
+                .updateTime(OffsetDateTime.now())
+                .build());
+    }
+
     public List<ArScanWordDO> pageWords(Long userPkId, String keyword, int pageNumber, int pageSize) {
         int normalizedPageNumber = normalizePageNumber(pageNumber);
         int normalizedPageSize = normalizePageSize(pageSize);

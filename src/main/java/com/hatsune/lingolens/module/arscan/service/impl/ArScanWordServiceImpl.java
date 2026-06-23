@@ -10,6 +10,7 @@ import com.hatsune.lingolens.module.arscan.dto.ArScanWordPageRequest;
 import com.hatsune.lingolens.module.arscan.dto.ArScanWordPageResponse;
 import com.hatsune.lingolens.module.arscan.manager.ArScanWordManager;
 import com.hatsune.lingolens.module.arscan.service.ArScanWordService;
+import com.hatsune.lingolens.module.wordasset.support.PronunciationUrlBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,6 +29,7 @@ public class ArScanWordServiceImpl implements ArScanWordService {
 
     private final ArScanWordManager arScanWordManager;
     private final CommonTools commonTools;
+    private final PronunciationUrlBuilder pronunciationUrlBuilder;
 
     @Override
     public ArScanWordPageResponse pageWords(@RequestBody(required = false) String requestJson) {
@@ -76,7 +78,7 @@ public class ArScanWordServiceImpl implements ArScanWordService {
                 .word(word.getWord())
                 .displayWord(word.getDisplayWord())
                 .phonetic(word.getPhonetic())
-                .pronunciationUrl(word.getPronunciationUrl())
+                .pronunciationUrl(pronunciationUrlBuilder.buildFromPath(word.getPronunciationUrl()))
                 .partOfSpeech(word.getPartOfSpeech())
                 .translation(word.getTranslation())
                 .definition(word.getDefinition())

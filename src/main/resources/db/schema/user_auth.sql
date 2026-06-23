@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url TEXT NOT NULL,
     email VARCHAR(128),
     bio VARCHAR(256),
+    source_language VARCHAR(16) NOT NULL DEFAULT 'zh-CN',
+    target_language VARCHAR(16) NOT NULL DEFAULT 'en',
+    ui_language VARCHAR(16) NOT NULL DEFAULT 'zh-CN',
+    theme_mode VARCHAR(16) NOT NULL DEFAULT 'system',
     password_hash VARCHAR(128) NOT NULL,
     create_time TIMESTAMPTZ,
     update_time TIMESTAMPTZ

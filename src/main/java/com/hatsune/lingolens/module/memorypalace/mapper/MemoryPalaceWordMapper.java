@@ -15,6 +15,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.SelectProvider;
+import org.apache.ibatis.annotations.Update;
 import org.apache.ibatis.annotations.UpdateProvider;
 
 import java.util.List;
@@ -58,11 +59,8 @@ public interface MemoryPalaceWordMapper {
                 word.palace_id,
                 word.user_pk_id,
                 word.word_asset_id,
-                word.slot_key,
-                word.slot_name,
-                word.anchor_description,
-                word.image_optimized,
-                word.image_upload_provider,
+                word.anchor_x_percent,
+                word.anchor_y_percent,
                 word.source_image_url,
                 word.create_time,
                 word.update_time,
@@ -70,8 +68,7 @@ public interface MemoryPalaceWordMapper {
                 asset.word_key AS word,
                 COALESCE(target_payload.payload ->> 'word', asset.canonical_word) AS display_word,
                 target_payload.payload ->> 'phonetic' AS phonetic,
-                COALESCE(asset.pronunciation_base_url, 'http://dict.youdao.com/dictvoice')
-                    || COALESCE(target_payload.payload ->> 'pronunciationPath', '') AS pronunciation_url,
+                COALESCE(target_payload.payload ->> 'pronunciationPath', '') AS pronunciation_url,
                 target_payload.payload ->> 'pos' AS part_of_speech,
                 COALESCE(source_payload.payload ->> 'word', asset.canonical_word) AS translation,
                 target_payload.payload ->> 'explanation' AS definition,
@@ -120,6 +117,33 @@ public interface MemoryPalaceWordMapper {
 
     @Select("SELECT COUNT(1) FROM memory_palace_words WHERE user_pk_id = #{userPkId}")
     Integer countByUser(@Param("userPkId") Long userPkId);
+
+    @Select("""
+            SELECT COUNT(1) FROM memory_palace_words
+            WHERE user_pk_id = #{userPkId}
+              AND word_asset_id = #{wordAssetId}
+            """)
+    Integer countByUserAndAsset(@Param("userPkId") Long userPkId,
+                                @Param("wordAssetId") Long wordAssetId);
+
+    @Delete("""
+            DELETE FROM memory_palace_words
+            WHERE id = #{palaceWordId}
+              AND user_pk_id = #{userPkId}
+            """)
+    int deleteByUserAndId(@Param("userPkId") Long userPkId,
+                          @Param("palaceWordId") Long palaceWordId);
+
+    @Update("""
+            UPDATE memory_palace_words
+            SET palace_id = #{targetPalaceId},
+                update_time = now()
+            WHERE id = #{palaceWordId}
+              AND user_pk_id = #{userPkId}
+            """)
+    int moveToPalace(@Param("userPkId") Long userPkId,
+                     @Param("palaceWordId") Long palaceWordId,
+                     @Param("targetPalaceId") Long targetPalaceId);
 
     @Select("""
             SELECT source_image_url

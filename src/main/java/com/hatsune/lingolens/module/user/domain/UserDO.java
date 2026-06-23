@@ -58,6 +58,18 @@ public class UserDO {
     @TableField("bio")
     private String bio;
 
+    @TableField("source_language")
+    private String sourceLanguage;
+
+    @TableField("target_language")
+    private String targetLanguage;
+
+    @TableField("ui_language")
+    private String uiLanguage;
+
+    @TableField("theme_mode")
+    private String themeMode;
+
     /**
      * BCrypt 加密后的登录密码密文。
      */

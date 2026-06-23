@@ -24,6 +24,7 @@ public class SceneNameLocalizer {
             entry("夜间学习角", "夜间学习角", "Night Study Corner", "夜の学習コーナー"),
             entry("现场扫描", "现场扫描", "Live Scan", "ライブスキャン"),
             entry("扫描场景", "扫描场景", "Scan Scene", "スキャンシーン"),
+            entry("今日卡片池", "今日卡片池", "Today's Cards", "今日のカード"),
             entry("Default Scene", "默认场景", "Default Scene", "デフォルトシーン")
     );
 

@@ -12,12 +12,14 @@ import com.hatsune.lingolens.module.lens.bo.LensRecognizedWordBO;
 import com.hatsune.lingolens.module.lens.bo.LensWordInfoBO;
 import com.hatsune.lingolens.module.lens.dto.LensBoxDTO;
 import com.hatsune.lingolens.module.lens.dto.LensDetectedTagDTO;
+import com.hatsune.lingolens.module.lens.dto.LensGroundingResponse;
 import com.hatsune.lingolens.module.lens.dto.LensRecognizeRequest;
 import com.hatsune.lingolens.module.lens.dto.LensRecognizeResponse;
 import com.hatsune.lingolens.module.lens.dto.LensRecognizedWordDTO;
 import com.hatsune.lingolens.module.lens.dto.LensWordDetailRequest;
 import com.hatsune.lingolens.module.lens.dto.LensWordDetailResponse;
 import com.hatsune.lingolens.module.lens.dto.LensWordInfoDTO;
+import com.hatsune.lingolens.module.lens.manager.LensGroundingManager;
 import com.hatsune.lingolens.module.lens.manager.LensManager;
 import com.hatsune.lingolens.module.lens.service.LensService;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +68,7 @@ public class LensServiceImpl implements LensService {
             """;
 
     private final LensManager lensManager;
+    private final LensGroundingManager lensGroundingManager;
     private final LingoLensLlmClient llmClient;
     private final CommonTools commonTools;
     private final RedisDistributedLock redisDistributedLock;
@@ -106,6 +109,37 @@ public class LensServiceImpl implements LensService {
             completeEmitterWithLine(emitter, "# error: system busy");
         }
         return emitter;
+    }
+
+    @Override
+    public LensGroundingResponse recognizeGrounding(@RequestBody String requestJson) {
+        log.info("lens grounding request, requestJson={}",
+                commonTools.maskSensitiveJson(requestJson, "imageBase64"));
+        try {
+            LensRecognizeRequest request = commonTools.parseJsonAllowBlank(
+                    requestJson, LensRecognizeRequest.class);
+            commonTools.validateByJsr303(request);
+            normalizeRecognizeRequest(request);
+            Assert.isTrue(hasImagePayload(request), "image payload must not be blank");
+            return LensGroundingResponse.builder()
+                    .result(ResponseResult.success())
+                    .nodes(lensGroundingManager.recognize(
+                            imageReference(request),
+                            request.getSourceLanguage(),
+                            request.getTargetLanguage()))
+                    .build();
+        } catch (BizException | IllegalArgumentException e) {
+            return LensGroundingResponse.builder()
+                    .result(ResponseResult.fail(e.getMessage()))
+                    .nodes(List.of())
+                    .build();
+        } catch (Exception e) {
+            log.error("lens grounding failed", e);
+            return LensGroundingResponse.builder()
+                    .result(ResponseResult.fail("system busy, please try again later"))
+                    .nodes(List.of())
+                    .build();
+        }
     }
 
     @Override

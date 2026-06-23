@@ -4,11 +4,9 @@ import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceWordDO;
 import com.hatsune.lingolens.module.memorypalace.mapper.MemoryPalaceWordMapper;
 import com.hatsune.lingolens.module.review.bo.ReviewCardBO;
 import com.hatsune.lingolens.module.review.bo.ReviewCardsBO;
-import com.hatsune.lingolens.module.review.domain.ReviewRecordDO;
 import com.hatsune.lingolens.module.review.dto.ReviewAnswerDTO;
 import com.hatsune.lingolens.module.review.dto.ReviewCardsRequest;
 import com.hatsune.lingolens.module.review.mapper.ReviewRecordMapper;
-import com.hatsune.lingolens.infrastructure.id.DistributedIdGenerator;
 import com.hatsune.lingolens.module.user.domain.UserPreferenceDO;
 import com.hatsune.lingolens.module.user.manager.UserPreferenceManager;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +16,6 @@ import org.springframework.util.CollectionUtils;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,11 +27,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReviewManager {
 
-    private static final String REVIEW_RECORD_ID_BIZ_TYPE = "review_record";
-
     private final ReviewRecordMapper reviewRecordMapper;
     private final MemoryPalaceWordMapper memoryPalaceWordMapper;
-    private final DistributedIdGenerator distributedIdGenerator;
     private final UserPreferenceManager userPreferenceManager;
 
     public int countDueToday(Long userPkId) {
@@ -71,7 +65,7 @@ public class ReviewManager {
             return 0;
         }
         OffsetDateTime now = OffsetDateTime.now();
-        List<ReviewRecordDO> records = new ArrayList<>();
+        int recordedCount = 0;
         for (ReviewAnswerDTO answer : answers) {
             Long wordId = answer.getWordId() == null ? answer.getCardId() : answer.getWordId();
             if (wordId == null && answer.getWordAssetId() == null) {
@@ -83,21 +77,16 @@ public class ReviewManager {
             if (word == null || !userPkId.equals(word.getUserPkId())) {
                 continue;
             }
-            records.add(ReviewRecordDO.builder()
-                    .id(distributedIdGenerator.id(REVIEW_RECORD_ID_BIZ_TYPE))
-                    .userPkId(userPkId)
-                    .wordId(word.getId())
-                    .wordAssetId(word.getWordAssetId())
-                    .recognized(Boolean.TRUE.equals(answer.getIsRecognized()))
-                    .answerTime(parseAnswerTime(answer.getAnswerTime(), now))
-                    .createTime(now)
-                    .build());
+            OffsetDateTime answerTime = parseAnswerTime(answer.getAnswerTime(), now);
+            int lastResult = Boolean.TRUE.equals(answer.getIsRecognized()) ? 1 : 0;
+            recordedCount += reviewRecordMapper.upsertProgress(
+                    userPkId,
+                    word.getId(),
+                    word.getWordAssetId(),
+                    lastResult,
+                    answerTime);
         }
-        if (records.isEmpty()) {
-            return 0;
-        }
-        reviewRecordMapper.batchInsert(records);
-        return records.size();
+        return recordedCount;
     }
 
     private OffsetDateTime parseAnswerTime(String answerTime, OffsetDateTime fallback) {

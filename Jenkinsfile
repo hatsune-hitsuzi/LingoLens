@@ -221,6 +221,10 @@ void dockerDeploy() {
                 -e TZ=Asia/Shanghai \\
                 -e LINGOLENS_LLM_ENABLED=true \\
                 -e LINGOLENS_LLM_AUTHORIZATION="\$LINGOLENS_LLM_AUTHORIZATION" \\
+                -e LINGOLENS_LLM_MAX_TOKENS=800 \\
+                -e LINGOLENS_LLM_TEMPERATURE=0 \\
+                -e LINGOLENS_LLM_REQUEST_TIMEOUT_SECONDS=90 \\
+                -e LINGOLENS_LLM_STREAM_TIMEOUT_SECONDS=90 \\
                 ${image}
             docker ps --filter "name=${env.APP_CONTAINER_NAME}"
         """

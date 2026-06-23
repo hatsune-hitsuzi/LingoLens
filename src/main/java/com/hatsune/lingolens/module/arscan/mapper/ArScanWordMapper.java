@@ -7,6 +7,7 @@ import com.hatsune.lingolens.common.mybatis.provider.BaseInsertProvider;
 import com.hatsune.lingolens.common.mybatis.provider.BaseSelectProvider;
 import com.hatsune.lingolens.common.mybatis.provider.BaseUpdateProvider;
 import com.hatsune.lingolens.module.arscan.domain.ArScanWordDO;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.DeleteProvider;
 import org.apache.ibatis.annotations.InsertProvider;
 import org.apache.ibatis.annotations.Mapper;
@@ -53,6 +54,14 @@ public interface ArScanWordMapper {
     @Select("SELECT COUNT(1) FROM ar_scan_words WHERE user_pk_id = #{userPkId}")
     Integer countByUser(@Param("userPkId") Long userPkId);
 
+    @Delete("""
+            DELETE FROM ar_scan_words
+            WHERE user_pk_id = #{userPkId}
+              AND word_asset_id = #{wordAssetId}
+            """)
+    int deleteByUserAndAsset(@Param("userPkId") Long userPkId,
+                             @Param("wordAssetId") Long wordAssetId);
+
     @Select("""
             <script>
             SELECT
@@ -68,8 +77,7 @@ public interface ArScanWordMapper {
                 asset.word_key AS word,
                 COALESCE(target_payload.payload ->> 'word', asset.canonical_word) AS display_word,
                 target_payload.payload ->> 'phonetic' AS phonetic,
-                COALESCE(asset.pronunciation_base_url, 'http://dict.youdao.com/dictvoice')
-                    || COALESCE(target_payload.payload ->> 'pronunciationPath', '') AS pronunciation_url,
+                COALESCE(target_payload.payload ->> 'pronunciationPath', '') AS pronunciation_url,
                 target_payload.payload ->> 'pos' AS part_of_speech,
                 COALESCE(source_payload.payload ->> 'word', asset.canonical_word) AS translation,
                 target_payload.payload ->> 'explanation' AS definition,

@@ -8,7 +8,9 @@ import org.apache.ibatis.annotations.InsertProvider;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Insert;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -27,24 +29,19 @@ public interface ReviewRecordMapper {
     @Select("""
             SELECT COUNT(DISTINCT word.word_asset_id)
             FROM memory_palace_words word
+            LEFT JOIN review_word_progress progress
+              ON progress.user_pk_id = word.user_pk_id
+             AND progress.word_asset_id = word.word_asset_id
             WHERE word.user_pk_id = #{userPkId}
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM review_records record
-                  WHERE record.user_pk_id = word.user_pk_id
-                    AND record.word_asset_id = word.word_asset_id
-                    AND record.create_time >= CURRENT_DATE
-                    AND record.create_time < CURRENT_DATE + INTERVAL '1 day'
-              )
+              AND (progress.last_review_date IS NULL OR progress.last_review_date < CURRENT_DATE)
             """)
     Integer countDueToday(@Param("userPkId") Long userPkId);
 
     @Select("""
             SELECT COUNT(DISTINCT word_asset_id)
-            FROM review_records
+            FROM review_word_progress
             WHERE user_pk_id = #{userPkId}
-              AND create_time >= CURRENT_DATE
-              AND create_time < CURRENT_DATE + INTERVAL '1 day'
+              AND last_review_date = CURRENT_DATE
             """)
     Integer countAnsweredToday(@Param("userPkId") Long userPkId);
 
@@ -77,8 +74,7 @@ public interface ReviewRecordMapper {
                     asset.word_key AS word,
                     COALESCE(target_payload.payload ->> 'word', asset.canonical_word) AS display_word,
                     target_payload.payload ->> 'phonetic' AS phonetic,
-                    COALESCE(asset.pronunciation_base_url, 'http://dict.youdao.com/dictvoice')
-                        || COALESCE(target_payload.payload ->> 'pronunciationPath', '') AS pronunciation_url,
+                    COALESCE(target_payload.payload ->> 'pronunciationPath', '') AS pronunciation_url,
                     target_payload.payload ->> 'pos' AS part_of_speech,
                     COALESCE(source_payload.payload ->> 'word', asset.canonical_word) AS translation,
                     target_payload.payload ->> 'explanation' AS definition,
@@ -89,6 +85,9 @@ public interface ReviewRecordMapper {
                 FROM memory_palace_words word
                 LEFT JOIN memory_palaces palace ON palace.id = word.palace_id
                 JOIN word_assets asset ON asset.id = word.word_asset_id
+                LEFT JOIN review_word_progress progress
+                  ON progress.user_pk_id = word.user_pk_id
+                 AND progress.word_asset_id = word.word_asset_id
                 LEFT JOIN LATERAL (
                     SELECT item.value AS payload
                     FROM jsonb_array_elements(asset.language_payloads::jsonb) AS item(value)
@@ -110,14 +109,7 @@ public interface ReviewRecordMapper {
                     LIMIT 1
                 ) source_payload ON TRUE
                 WHERE word.user_pk_id = #{userPkId}
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM review_records record
-                      WHERE record.user_pk_id = word.user_pk_id
-                        AND record.word_asset_id = word.word_asset_id
-                        AND record.create_time >= CURRENT_DATE
-                        AND record.create_time < CURRENT_DATE + INTERVAL '1 day'
-                  )
+                  AND (progress.last_review_date IS NULL OR progress.last_review_date < CURRENT_DATE)
                 ORDER BY word.word_asset_id, word.create_time DESC, word.id DESC
             )
             SELECT *
@@ -129,4 +121,48 @@ public interface ReviewRecordMapper {
                                     @Param("sourceLanguage") String sourceLanguage,
                                     @Param("targetLanguage") String targetLanguage,
                                     @Param("pageSize") int pageSize);
+
+    @Insert("""
+            INSERT INTO review_word_progress (
+                user_pk_id,
+                word_asset_id,
+                last_word_id,
+                last_result,
+                correct_count,
+                wrong_count,
+                total_count,
+                last_answer_time,
+                last_review_date,
+                create_time,
+                update_time
+            ) VALUES (
+                #{userPkId},
+                #{wordAssetId},
+                #{wordId},
+                #{lastResult},
+                CASE WHEN #{lastResult} = 1 THEN 1 ELSE 0 END,
+                CASE WHEN #{lastResult} = 1 THEN 0 ELSE 1 END,
+                1,
+                #{answerTime},
+                CAST(#{answerTime} AS date),
+                now(),
+                now()
+            )
+            ON CONFLICT (user_pk_id, word_asset_id) DO UPDATE SET
+                last_word_id = EXCLUDED.last_word_id,
+                last_result = EXCLUDED.last_result,
+                correct_count = review_word_progress.correct_count
+                    + CASE WHEN EXCLUDED.last_result = 1 THEN 1 ELSE 0 END,
+                wrong_count = review_word_progress.wrong_count
+                    + CASE WHEN EXCLUDED.last_result = 1 THEN 0 ELSE 1 END,
+                total_count = review_word_progress.total_count + 1,
+                last_answer_time = EXCLUDED.last_answer_time,
+                last_review_date = EXCLUDED.last_review_date,
+                update_time = now()
+            """)
+    int upsertProgress(@Param("userPkId") Long userPkId,
+                       @Param("wordId") Long wordId,
+                       @Param("wordAssetId") Long wordAssetId,
+                       @Param("lastResult") int lastResult,
+                       @Param("answerTime") OffsetDateTime answerTime);
 }

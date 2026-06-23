@@ -243,10 +243,8 @@ public class WordAssetManager {
         WordAssetDO asset = WordAssetDO.builder()
                 .id(distributedIdGenerator.id(WORD_ASSET_ID_BIZ_TYPE))
                 .wordKey(wordKey)
-                .canonicalLanguage("en")
                 .canonicalWord(wordKey)
                 .languagePayloads(buildGeneratedPayloads(wordKey, sourceLanguage, targetLanguage, wordInfo).toJSONString())
-                .pronunciationBaseUrl(pronunciationUrlBuilder.baseUrl())
                 .assetSource(StringUtils.hasText(assetSource) ? assetSource : ASSET_SOURCE_LLM)
                 .createTime(now)
                 .updateTime(now)
@@ -268,10 +266,8 @@ public class WordAssetManager {
         WordAssetDO asset = WordAssetDO.builder()
                 .id(distributedIdGenerator.id(WORD_ASSET_ID_BIZ_TYPE))
                 .wordKey(wordKey)
-                .canonicalLanguage(defaultIfBlank(generated.getCanonicalLanguage(), "en"))
                 .canonicalWord(defaultIfBlank(generated.getCanonicalWord(), wordKey))
                 .languagePayloads(buildGeneratedPayloads(generated).toJSONString())
-                .pronunciationBaseUrl(pronunciationUrlBuilder.baseUrl())
                 .assetImageUrl(defaultIfBlank(imageUrl, ""))
                 .assetSource(StringUtils.hasText(assetSource) ? assetSource : ASSET_SOURCE_LLM_IMAGE)
                 .createTime(now)
@@ -297,12 +293,10 @@ public class WordAssetManager {
             upsertPayload(currentPayloads, payload);
         }
         asset.setLanguagePayloads(currentPayloads.toJSONString());
-        asset.setPronunciationBaseUrl(defaultIfBlank(asset.getPronunciationBaseUrl(), pronunciationUrlBuilder.baseUrl()));
         asset.setUpdateTime(OffsetDateTime.now());
         wordAssetMapper.updateByPrimaryKey(WordAssetDO.builder()
                 .id(asset.getId())
                 .languagePayloads(asset.getLanguagePayloads())
-                .pronunciationBaseUrl(asset.getPronunciationBaseUrl())
                 .updateTime(asset.getUpdateTime())
                 .build());
         return asset;
@@ -318,19 +312,15 @@ public class WordAssetManager {
             upsertPayload(currentPayloads, payload);
         }
         asset.setLanguagePayloads(currentPayloads.toJSONString());
-        asset.setCanonicalLanguage(defaultIfBlank(asset.getCanonicalLanguage(), defaultIfBlank(generated.getCanonicalLanguage(), "en")));
         asset.setCanonicalWord(defaultIfBlank(asset.getCanonicalWord(), generated.getCanonicalWord()));
-        asset.setPronunciationBaseUrl(defaultIfBlank(asset.getPronunciationBaseUrl(), pronunciationUrlBuilder.baseUrl()));
         if (StringUtils.hasText(imageUrl)) {
             asset.setAssetImageUrl(imageUrl.trim());
         }
         asset.setUpdateTime(OffsetDateTime.now());
         wordAssetMapper.updateByPrimaryKey(WordAssetDO.builder()
                 .id(asset.getId())
-                .canonicalLanguage(asset.getCanonicalLanguage())
                 .canonicalWord(asset.getCanonicalWord())
                 .languagePayloads(asset.getLanguagePayloads())
-                .pronunciationBaseUrl(asset.getPronunciationBaseUrl())
                 .assetImageUrl(asset.getAssetImageUrl())
                 .updateTime(asset.getUpdateTime())
                 .build());
@@ -409,7 +399,7 @@ public class WordAssetManager {
         JSONObject targetPayload = findPayload(asset, targetLang);
         JSONObject sourcePayload = findPayload(asset, sourceLang);
         String displayWord = targetPayload.getString("word");
-        String pronunciationBaseUrl = defaultIfBlank(asset.getPronunciationBaseUrl(), pronunciationUrlBuilder.baseUrl());
+        String pronunciationBaseUrl = pronunciationUrlBuilder.baseUrl();
         String pronunciationPath = defaultIfBlank(
                 targetPayload.getString("pronunciationPath"),
                 pronunciationUrlBuilder.buildPath(displayWord, targetLang)

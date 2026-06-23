@@ -40,6 +40,10 @@ public class LingoLensLlmProperties {
 
     private boolean stream = false;
 
+    private int requestTimeoutSeconds = 90;
+
+    private int streamTimeoutSeconds = 90;
+
     private ResponseFormat responseFormat = new ResponseFormat();
 
     private List<LanguageSpec> languages = defaultLanguages();

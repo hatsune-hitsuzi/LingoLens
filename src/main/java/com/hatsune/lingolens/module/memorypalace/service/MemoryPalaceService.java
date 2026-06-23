@@ -8,6 +8,8 @@ import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceDeleteResponse;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceUpdateResponse;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordAddResponse;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordPageResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordDeleteResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordMoveResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -66,4 +68,10 @@ public interface MemoryPalaceService {
      */
     @PostMapping("/word/page")
     MemoryPalaceWordPageResponse pageWords(@RequestBody String requestJson);
+
+    @PostMapping("/word/delete")
+    MemoryPalaceWordDeleteResponse deleteWord(@RequestBody String requestJson);
+
+    @PostMapping("/word/move")
+    MemoryPalaceWordMoveResponse moveWord(@RequestBody String requestJson);
 }

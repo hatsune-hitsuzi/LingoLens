@@ -28,17 +28,11 @@ public class WordAssetDO {
     @TableField("word_key")
     private String wordKey;
 
-    @TableField("canonical_language")
-    private String canonicalLanguage;
-
     @TableField("canonical_word")
     private String canonicalWord;
 
     @TableField("language_payloads")
     private String languagePayloads;
-
-    @TableField("pronunciation_base_url")
-    private String pronunciationBaseUrl;
 
     @TableField("asset_image_url")
     private String assetImageUrl;

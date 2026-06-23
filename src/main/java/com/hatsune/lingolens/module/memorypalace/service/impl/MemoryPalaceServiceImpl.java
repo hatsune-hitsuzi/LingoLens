@@ -10,6 +10,7 @@ import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceCreateBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceListBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordAddBO;
 import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordPageBO;
+import com.hatsune.lingolens.module.memorypalace.bo.MemoryPalaceWordMutationBO;
 import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceDO;
 import com.hatsune.lingolens.module.memorypalace.domain.MemoryPalaceWordDO;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceCreateRequest;
@@ -31,11 +32,16 @@ import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordAddResponse
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordItemDTO;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordPageRequest;
 import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordPageResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordDeleteRequest;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordDeleteResponse;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordMoveRequest;
+import com.hatsune.lingolens.module.memorypalace.dto.MemoryPalaceWordMoveResponse;
 import com.hatsune.lingolens.module.memorypalace.manager.MemoryPalaceManager;
 import com.hatsune.lingolens.module.memorypalace.service.MemoryPalaceService;
 import com.hatsune.lingolens.module.memorypalace.support.SceneNameLocalizer;
 import com.hatsune.lingolens.module.user.domain.UserPreferenceDO;
 import com.hatsune.lingolens.module.user.manager.UserPreferenceManager;
+import com.hatsune.lingolens.module.wordasset.support.PronunciationUrlBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +74,7 @@ public class MemoryPalaceServiceImpl implements MemoryPalaceService {
     private final SceneNameLocalizer sceneNameLocalizer;
     private final RedisDistributedLock redisDistributedLock;
     private final CommonTools commonTools;
+    private final PronunciationUrlBuilder pronunciationUrlBuilder;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -245,6 +252,76 @@ public class MemoryPalaceServiceImpl implements MemoryPalaceService {
         } catch (Exception e) {
             log.error("memory palace word page failed by system error", e);
             return buildWordPageFailResponse("system busy, please try again later");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MemoryPalaceWordDeleteResponse deleteWord(@RequestBody String requestJson) {
+        log.info("memory palace word delete request, requestJson={}", commonTools.maskSensitiveJson(requestJson));
+        try {
+            MemoryPalaceWordDeleteRequest request = commonTools.parseJson(
+                    requestJson, MemoryPalaceWordDeleteRequest.class);
+            commonTools.validateByJsr303(request);
+            MemoryPalaceWordMutationBO result = memoryPalaceManager.deleteWord(
+                    UserContext.getUserId(), request.getPalaceWordId());
+            return MemoryPalaceWordDeleteResponse.builder()
+                    .result(ResponseResult.success("deleted"))
+                    .palaceWordId(result.getPalaceWordId())
+                    .palaceId(result.getSourcePalaceId())
+                    .palaceWordCount(result.getSourcePalaceWordCount())
+                    .deleted(result.getChanged())
+                    .build();
+        } catch (BizException | IllegalArgumentException e) {
+            commonTools.markRollbackOnly();
+            return MemoryPalaceWordDeleteResponse.builder()
+                    .result(ResponseResult.fail(e.getMessage()))
+                    .deleted(false)
+                    .build();
+        } catch (Exception e) {
+            commonTools.markRollbackOnly();
+            log.error("memory palace word delete failed", e);
+            return MemoryPalaceWordDeleteResponse.builder()
+                    .result(ResponseResult.fail("system busy, please try again later"))
+                    .deleted(false)
+                    .build();
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MemoryPalaceWordMoveResponse moveWord(@RequestBody String requestJson) {
+        log.info("memory palace word move request, requestJson={}", commonTools.maskSensitiveJson(requestJson));
+        try {
+            MemoryPalaceWordMoveRequest request = commonTools.parseJson(
+                    requestJson, MemoryPalaceWordMoveRequest.class);
+            commonTools.validateByJsr303(request);
+            MemoryPalaceWordMutationBO result = memoryPalaceManager.moveWord(
+                    UserContext.getUserId(),
+                    request.getPalaceWordId(),
+                    request.getTargetPalaceId());
+            return MemoryPalaceWordMoveResponse.builder()
+                    .result(ResponseResult.success(Boolean.TRUE.equals(result.getChanged()) ? "moved" : "unchanged"))
+                    .palaceWordId(result.getPalaceWordId())
+                    .sourcePalaceId(result.getSourcePalaceId())
+                    .targetPalaceId(result.getTargetPalaceId())
+                    .sourcePalaceWordCount(result.getSourcePalaceWordCount())
+                    .targetPalaceWordCount(result.getTargetPalaceWordCount())
+                    .moved(result.getChanged())
+                    .build();
+        } catch (BizException | IllegalArgumentException e) {
+            commonTools.markRollbackOnly();
+            return MemoryPalaceWordMoveResponse.builder()
+                    .result(ResponseResult.fail(e.getMessage()))
+                    .moved(false)
+                    .build();
+        } catch (Exception e) {
+            commonTools.markRollbackOnly();
+            log.error("memory palace word move failed", e);
+            return MemoryPalaceWordMoveResponse.builder()
+                    .result(ResponseResult.fail("system busy, please try again later"))
+                    .moved(false)
+                    .build();
         }
     }
 
@@ -460,15 +537,12 @@ public class MemoryPalaceServiceImpl implements MemoryPalaceService {
                 .palaceWordId(word.getId())
                 .palaceId(word.getPalaceId())
                 .wordAssetId(word.getWordAssetId())
-                .slotKey(word.getSlotKey())
-                .slotName(word.getSlotName())
-                .anchorDescription(word.getAnchorDescription())
-                .imageOptimized(word.getImageOptimized())
-                .imageUploadProvider(word.getImageUploadProvider())
+                .anchorXPercent(word.getAnchorXPercent())
+                .anchorYPercent(word.getAnchorYPercent())
                 .word(word.getWord())
                 .displayWord(word.getDisplayWord())
                 .phonetic(word.getPhonetic())
-                .pronunciationUrl(word.getPronunciationUrl())
+                .pronunciationUrl(pronunciationUrlBuilder.buildFromPath(word.getPronunciationUrl()))
                 .partOfSpeech(word.getPartOfSpeech())
                 .translation(word.getTranslation())
                 .definition(word.getDefinition())
