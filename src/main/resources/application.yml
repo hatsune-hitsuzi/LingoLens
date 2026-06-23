@@ -11,7 +11,7 @@ lingolens:
     grounding-authorization: ${LINGOLENS_LLM_GROUNDING_AUTHORIZATION:}
     grounding-api-key: ${LINGOLENS_LLM_GROUNDING_API_KEY:}
     grounding-model: ${LINGOLENS_LLM_GROUNDING_MODEL:minimaxai/minimax-m3}
-    grounding-max-tokens: ${LINGOLENS_LLM_GROUNDING_MAX_TOKENS:1200}
+    grounding-max-tokens: ${LINGOLENS_LLM_GROUNDING_MAX_TOKENS:400}
     grounding-temperature: ${LINGOLENS_LLM_GROUNDING_TEMPERATURE:0}
     enrichment-invoke-url: ${LINGOLENS_LLM_ENRICHMENT_INVOKE_URL:}
     enrichment-authorization: ${LINGOLENS_LLM_ENRICHMENT_AUTHORIZATION:}
