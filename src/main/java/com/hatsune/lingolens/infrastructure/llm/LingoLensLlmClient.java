@@ -200,6 +200,55 @@ public class LingoLensLlmClient {
         }
     }
 
+    public void completeGroundingJsonLineStream(String systemPrompt,
+                                                String userPrompt,
+                                                String imageUrl,
+                                                Consumer<String> onLine) {
+        if (!properties.groundingAvailable() || onLine == null) {
+            log.warn("llm grounding stream request skipped, enabled={}, endpointConfigured={}, authorizationConfigured={}, hasLineConsumer={}",
+                    properties.isEnabled(),
+                    StringUtils.hasText(properties.groundingEndpoint()),
+                    StringUtils.hasText(properties.groundingAuthorizationHeader()),
+                    onLine != null);
+            return;
+        }
+        try {
+            JSONObject request = buildRequest(
+                    systemPrompt,
+                    userPrompt,
+                    imageUrl,
+                    properties.groundingModel(),
+                    properties.groundingMaxTokens(),
+                    properties.groundingTemperature(),
+                    true);
+            request.remove("response_format");
+            log.info("llm grounding stream request start, model={}, endpoint={}, imagePresent={}, maxTokens={}, temperature={}, systemPromptLength={}, userPromptLength={}",
+                    properties.groundingModel(),
+                    properties.groundingEndpoint(),
+                    StringUtils.hasText(imageUrl),
+                    request.getInteger("max_tokens"),
+                    request.getDouble("temperature"),
+                    safeLength(systemPrompt),
+                    safeLength(userPrompt));
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(properties.groundingEndpoint()))
+                    .timeout(Duration.ofSeconds(normalizeTimeout(properties.getStreamTimeoutSeconds(), 90)))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "text/event-stream")
+                    .header("Authorization", properties.groundingAuthorizationHeader())
+                    .POST(HttpRequest.BodyPublishers.ofString(request.toJSONString()))
+                    .build();
+            HttpResponse<InputStream> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("llm grounding stream request failed, status={}", response.statusCode());
+                return;
+            }
+            streamSseContentLines(response.body(), onLine);
+        } catch (Exception e) {
+            log.warn("llm grounding stream request failed", e);
+        }
+    }
+
     private JSONObject buildRequest(String systemPrompt,
                                     String userPrompt,
                                     String imageUrl,

@@ -25,6 +25,9 @@ public interface LensService {
     @PostMapping("/recognize/grounding")
     LensGroundingResponse recognizeGrounding(@RequestBody String requestJson);
 
+    @PostMapping(value = "/recognize/grounding/stream", produces = MediaType.TEXT_PLAIN_VALUE)
+    ResponseBodyEmitter recognizeGroundingStream(@RequestBody String requestJson);
+
     @PostMapping("/word/detail")
     LensWordDetailResponse wordDetail(@RequestBody String requestJson);
 }

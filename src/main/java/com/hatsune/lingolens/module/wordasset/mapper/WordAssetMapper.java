@@ -57,4 +57,15 @@ public interface WordAssetMapper {
             LIMIT 1
             """)
     WordAssetDO selectByWordKey(@Param("wordKey") String wordKey);
+
+    @Select("""
+            SELECT *
+            FROM word_assets
+            WHERE COALESCE(enrichment_status, 'pending') <> 'enriched'
+              AND update_time < NOW() - (#{minAgeMinutes} * INTERVAL '1 minute')
+            ORDER BY update_time ASC
+            LIMIT #{limit}
+            """)
+    List<WordAssetDO> selectPendingEnrichment(@Param("limit") int limit,
+                                              @Param("minAgeMinutes") int minAgeMinutes);
 }

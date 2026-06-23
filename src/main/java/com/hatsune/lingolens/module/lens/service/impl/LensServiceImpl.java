@@ -34,8 +34,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
@@ -124,10 +128,13 @@ public class LensServiceImpl implements LensService {
             commonTools.validateByJsr303(request);
             normalizeRecognizeRequest(request);
             Assert.isTrue(hasImagePayload(request), "image payload must not be blank");
+            ImageDimensions dimensions = imageDimensions(request);
             List<LensGroundingNodeDTO> nodes = lensGroundingManager.recognize(
                     imageReference(request),
                     request.getSourceLanguage(),
-                    request.getTargetLanguage());
+                    request.getTargetLanguage(),
+                    dimensions.width(),
+                    dimensions.height());
             LensGroundingResponse response = LensGroundingResponse.builder()
                     .result(ResponseResult.success())
                     .nodes(nodes)
@@ -147,6 +154,27 @@ public class LensServiceImpl implements LensService {
                     .nodes(List.of())
                     .build();
         }
+    }
+
+    @Override
+    public ResponseBodyEmitter recognizeGroundingStream(@RequestBody String requestJson) {
+        log.info("lens grounding stream request, requestJson={}",
+                commonTools.maskSensitiveJson(requestJson, "imageBase64"));
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter(60_000L);
+        try {
+            LensRecognizeRequest request = commonTools.parseJsonAllowBlank(
+                    requestJson, LensRecognizeRequest.class);
+            commonTools.validateByJsr303(request);
+            normalizeRecognizeRequest(request);
+            Assert.isTrue(hasImagePayload(request), "image payload must not be blank");
+            CompletableFuture.runAsync(() -> streamGroundingNodes(request, emitter));
+        } catch (BizException | IllegalArgumentException e) {
+            completeEmitterWithLine(emitter, "# error: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("lens grounding stream failed by system error", e);
+            completeEmitterWithLine(emitter, "# error: system busy");
+        }
+        return emitter;
     }
 
     @Override
@@ -252,6 +280,32 @@ public class LensServiceImpl implements LensService {
         return StringUtils.hasText(request.getImageUrl()) || StringUtils.hasText(request.getImageBase64());
     }
 
+    private void streamGroundingNodes(LensRecognizeRequest request, ResponseBodyEmitter emitter) {
+        List<LensGroundingNodeDTO> emittedNodes = new ArrayList<>();
+        try {
+            ImageDimensions dimensions = imageDimensions(request);
+            lensGroundingManager.recognizeStream(
+                    imageReference(request),
+                    request.getSourceLanguage(),
+                    request.getTargetLanguage(),
+                    dimensions.width(),
+                    dimensions.height(),
+                    node -> {
+                        try {
+                            emittedNodes.add(node);
+                            emitter.send(com.alibaba.fastjson2.JSON.toJSONString(node) + "\n", MediaType.TEXT_PLAIN);
+                        } catch (Exception sendError) {
+                            throw new IllegalStateException(sendError);
+                        }
+                    });
+            scheduleGroundedWordAssetWarmup(emittedNodes);
+            emitter.complete();
+        } catch (Exception e) {
+            log.warn("lens grounding stream emit failed", e);
+            emitter.completeWithError(e);
+        }
+    }
+
     private void streamCloudTags(LensRecognizeRequest request, ResponseBodyEmitter emitter) {
         try {
             List<String> unresolvedTags = request.getDetectedTags() == null
@@ -288,6 +342,23 @@ public class LensServiceImpl implements LensService {
         return request.getImageUrl();
     }
 
+    private ImageDimensions imageDimensions(LensRecognizeRequest request) {
+        if (!StringUtils.hasText(request.getImageBase64())) {
+            return ImageDimensions.UNKNOWN;
+        }
+        try {
+            byte[] bytes = Base64.getDecoder().decode(request.getImageBase64());
+            BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
+            if (image == null) {
+                return ImageDimensions.UNKNOWN;
+            }
+            return new ImageDimensions(image.getWidth(), image.getHeight());
+        } catch (Exception e) {
+            log.debug("lens image dimension decode skipped", e);
+            return ImageDimensions.UNKNOWN;
+        }
+    }
+
     private String buildStreamUserPrompt(List<String> unresolvedTags,
                                          String sourceLanguage,
                                          String targetLanguage) {
@@ -311,6 +382,10 @@ public class LensServiceImpl implements LensService {
         } catch (Exception e) {
             emitter.completeWithError(e);
         }
+    }
+
+    private record ImageDimensions(Integer width, Integer height) {
+        private static final ImageDimensions UNKNOWN = new ImageDimensions(null, null);
     }
 
     private void normalizeWordDetailRequest(LensWordDetailRequest request) {

@@ -4,6 +4,7 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * @author hatsune_hitsuzi
@@ -18,6 +19,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
         "com.hatsune.lingolens.module.review.mapper"
 })
 @EnableAsync
+@EnableScheduling
 @SpringBootApplication
 public class LingoLensApplication {
 

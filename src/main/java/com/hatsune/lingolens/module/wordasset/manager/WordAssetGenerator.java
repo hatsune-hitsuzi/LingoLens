@@ -183,7 +183,7 @@ public class WordAssetGenerator {
                 return llmWord;
             }
         }
-        return generateFastSeed(wordKey, sourceLanguage, targetLanguage);
+        return null;
     }
 
     public GeneratedWordAssetBO generateFromImage(String imageUrl) {
@@ -230,7 +230,7 @@ public class WordAssetGenerator {
                 .phonetic(target.phonetic())
                 .partOfSpeech(target.partOfSpeech())
                 .translation(source.displayWord())
-                .definition(source.definition())
+                .definition(target.definition())
                 .exampleSentence(target.exampleSentence())
                 .exampleTranslation(source.exampleSentence())
                 .build();
@@ -246,7 +246,7 @@ public class WordAssetGenerator {
                 .phonetic(defaultPhonetic(targetKey, displayWord))
                 .partOfSpeech(partOfSpeechFor(targetKey))
                 .translation(displayWord)
-                .definition(defaultDefinition(sourceKey))
+                .definition(defaultDefinition(targetKey))
                 .exampleSentence(defaultExample(targetKey, wordKey, displayWord))
                 .exampleTranslation(defaultExample(sourceKey, wordKey, displayWord))
                 .build();
@@ -263,6 +263,7 @@ public class WordAssetGenerator {
 
                             Return exactly these JSON fields:
                             word, displayWord, phonetic, partOfSpeech, translation, definition, exampleSentence, exampleTranslation.
+                            definition must use the target language. translation and exampleTranslation must use the source language.
                             
                             Reminder:
                             No prose. No markdown. No explanations. The first output character must be "{".
@@ -373,8 +374,8 @@ public class WordAssetGenerator {
 
                 Rules:
                 - word must remain a stable lowercase English object key when possible.
-                - displayWord, phonetic, partOfSpeech, and exampleSentence use the target language.
-                - translation, definition, and exampleTranslation use the source/native language.
+                - displayWord, phonetic, partOfSpeech, definition, and exampleSentence use the target language.
+                - translation and exampleTranslation use the source/native language.
                 - If target language is English, phonetic must be standard IPA.
                 - If target language is Chinese, phonetic must be pinyin with tone marks.
                 - If target language is Japanese, phonetic must include kana plus romaji, for example "ボトル / botoru".

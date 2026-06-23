@@ -3,8 +3,11 @@ package com.hatsune.lingolens.module.wordasset.manager;
 import com.hatsune.lingolens.common.exception.BizException;
 import com.hatsune.lingolens.common.lock.RedisDistributedLock;
 import com.hatsune.lingolens.common.redis.RedisKeyConstant;
+import com.hatsune.lingolens.module.wordasset.domain.WordAssetDO;
+import com.hatsune.lingolens.module.wordasset.mapper.WordAssetMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -40,6 +43,7 @@ public class WordAssetWarmupManager {
 
     private final WordAssetManager wordAssetManager;
     private final RedisDistributedLock redisDistributedLock;
+    private final WordAssetMapper wordAssetMapper;
 
     @Async("wordAssetWarmupExecutor")
     public void warmupCoreLanguagePairs(Collection<String> words) {
@@ -79,6 +83,23 @@ public class WordAssetWarmupManager {
             }
         }
         log.info("word asset warmup finished, wordCount={}", wordKeys.size());
+    }
+
+    @Scheduled(
+            fixedDelayString = "${lingolens.word-asset.repair-delay-ms:180000}",
+            initialDelayString = "${lingolens.word-asset.repair-initial-delay-ms:90000}")
+    public void repairPendingWordAssets() {
+        List<WordAssetDO> pendingAssets = wordAssetMapper.selectPendingEnrichment(6, 5);
+        if (pendingAssets == null || pendingAssets.isEmpty()) {
+            return;
+        }
+        List<String> wordKeys = pendingAssets.stream()
+                .map(WordAssetDO::getWordKey)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        log.info("word asset repair scan picked, count={}, wordKeys={}", wordKeys.size(), wordKeys);
+        warmupCoreLanguagePairs(wordKeys);
     }
 
     private Set<String> normalizeWords(Collection<String> words) {

@@ -37,6 +37,9 @@ public class WordAssetManager {
     private static final String ASSET_SOURCE_LLM = "llm";
     private static final String ASSET_SOURCE_LLM_IMAGE = "llm_image";
     private static final String ASSET_SOURCE_SEED = "seed";
+    private static final String ENRICHMENT_STATUS_PENDING = "pending";
+    private static final String ENRICHMENT_STATUS_ENRICHED = "enriched";
+    private static final String ENRICHMENT_STATUS_FAILED = "failed";
     private static final Duration CACHE_TTL = Duration.ofDays(30);
 
     private final WordAssetMapper wordAssetMapper;
@@ -169,6 +172,12 @@ public class WordAssetManager {
                     normalizedSourceLanguage,
                     normalizedTargetLanguage
             );
+            if (generatedWord == null) {
+                generatedWord = wordAssetGenerator.generateFastSeed(wordKey, normalizedSourceLanguage, normalizedTargetLanguage);
+                asset = insertGeneratedAsset(wordKey, normalizedSourceLanguage, normalizedTargetLanguage, generatedWord, ASSET_SOURCE_SEED);
+                markAssetEnrichmentStatus(asset, ENRICHMENT_STATUS_FAILED);
+                return toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
+            }
             asset = insertGeneratedAsset(wordKey, normalizedSourceLanguage, normalizedTargetLanguage, generatedWord, ASSET_SOURCE_LLM);
         } else if (shouldEnrichAsset(asset, normalizedSourceLanguage, normalizedTargetLanguage)) {
             LensWordInfoBO generatedWord = wordAssetGenerator.generateEnriched(
@@ -176,8 +185,13 @@ public class WordAssetManager {
                     normalizedSourceLanguage,
                     normalizedTargetLanguage
             );
+            if (generatedWord == null) {
+                markAssetEnrichmentStatus(asset, ENRICHMENT_STATUS_FAILED);
+                return toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
+            }
             mergeGeneratedPayloads(asset, normalizedSourceLanguage, normalizedTargetLanguage, generatedWord);
         }
+        markAssetEnrichmentStatus(asset, ENRICHMENT_STATUS_ENRICHED);
 
         LensWordInfoBO wordInfo = toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
         String cacheKey = RedisKeyConstant.WORD_ASSET.key(normalizedSourceLanguage, normalizedTargetLanguage, wordKey);
@@ -208,6 +222,22 @@ public class WordAssetManager {
         wordAssetMapper.updateByPrimaryKey(WordAssetDO.builder()
                 .id(asset.getId())
                 .assetSource(asset.getAssetSource())
+                .updateTime(asset.getUpdateTime())
+                .build());
+    }
+
+    private void markAssetEnrichmentStatus(WordAssetDO asset, String enrichmentStatus) {
+        if (asset == null || !StringUtils.hasText(enrichmentStatus)) {
+            return;
+        }
+        if (enrichmentStatus.equals(asset.getEnrichmentStatus())) {
+            return;
+        }
+        asset.setEnrichmentStatus(enrichmentStatus);
+        asset.setUpdateTime(OffsetDateTime.now());
+        wordAssetMapper.updateByPrimaryKey(WordAssetDO.builder()
+                .id(asset.getId())
+                .enrichmentStatus(asset.getEnrichmentStatus())
                 .updateTime(asset.getUpdateTime())
                 .build());
     }
@@ -243,9 +273,10 @@ public class WordAssetManager {
         WordAssetDO asset = WordAssetDO.builder()
                 .id(distributedIdGenerator.id(WORD_ASSET_ID_BIZ_TYPE))
                 .wordKey(wordKey)
-                .canonicalWord(wordKey)
+                .canonicalWord(canonicalWordFor(wordKey, sourceLanguage, targetLanguage, wordInfo))
                 .languagePayloads(buildGeneratedPayloads(wordKey, sourceLanguage, targetLanguage, wordInfo).toJSONString())
                 .assetSource(StringUtils.hasText(assetSource) ? assetSource : ASSET_SOURCE_LLM)
+                .enrichmentStatus(enrichmentStatusForAssetSource(assetSource))
                 .createTime(now)
                 .updateTime(now)
                 .build();
@@ -270,6 +301,7 @@ public class WordAssetManager {
                 .languagePayloads(buildGeneratedPayloads(generated).toJSONString())
                 .assetImageUrl(defaultIfBlank(imageUrl, ""))
                 .assetSource(StringUtils.hasText(assetSource) ? assetSource : ASSET_SOURCE_LLM_IMAGE)
+                .enrichmentStatus(enrichmentStatusForAssetSource(assetSource))
                 .createTime(now)
                 .updateTime(now)
                 .build();
@@ -297,6 +329,7 @@ public class WordAssetManager {
         wordAssetMapper.updateByPrimaryKey(WordAssetDO.builder()
                 .id(asset.getId())
                 .languagePayloads(asset.getLanguagePayloads())
+                .enrichmentStatus(asset.getEnrichmentStatus())
                 .updateTime(asset.getUpdateTime())
                 .build());
         return asset;
@@ -322,6 +355,7 @@ public class WordAssetManager {
                 .canonicalWord(asset.getCanonicalWord())
                 .languagePayloads(asset.getLanguagePayloads())
                 .assetImageUrl(asset.getAssetImageUrl())
+                .enrichmentStatus(asset.getEnrichmentStatus())
                 .updateTime(asset.getUpdateTime())
                 .build());
         return asset;
@@ -348,7 +382,7 @@ public class WordAssetManager {
                     defaultIfBlank(wordInfo.getTranslation(), wordKey),
                     "",
                     "",
-                    wordInfo.getDefinition(),
+                    wordInfo.getTranslation(),
                     wordInfo.getExampleTranslation()
             ));
         }
@@ -508,5 +542,25 @@ public class WordAssetManager {
 
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    private String canonicalWordFor(String wordKey,
+                                    String sourceLanguage,
+                                    String targetLanguage,
+                                    LensWordInfoBO wordInfo) {
+        if ("en".equals(contentLanguage(targetLanguage)) && StringUtils.hasText(wordInfo.getDisplayWord())) {
+            return wordInfo.getDisplayWord().trim();
+        }
+        if ("en".equals(contentLanguage(sourceLanguage)) && StringUtils.hasText(wordInfo.getTranslation())) {
+            return wordInfo.getTranslation().trim();
+        }
+        return wordKey.replace('-', ' ');
+    }
+
+    private String enrichmentStatusForAssetSource(String assetSource) {
+        String normalized = defaultIfBlank(assetSource, ASSET_SOURCE_LLM);
+        return ASSET_SOURCE_LLM.equals(normalized) || ASSET_SOURCE_LLM_IMAGE.equals(normalized)
+                ? ENRICHMENT_STATUS_ENRICHED
+                : ENRICHMENT_STATUS_PENDING;
     }
 }

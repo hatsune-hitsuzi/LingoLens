@@ -1,4 +1,7 @@
 lingolens:
+  word-asset:
+    repair-delay-ms: ${LINGOLENS_WORD_ASSET_REPAIR_DELAY_MS:180000}
+    repair-initial-delay-ms: ${LINGOLENS_WORD_ASSET_REPAIR_INITIAL_DELAY_MS:90000}
   llm:
     enabled: ${LINGOLENS_LLM_ENABLED:false}
     invoke-url: ${LINGOLENS_LLM_INVOKE_URL:https://integrate.api.nvidia.com/v1/chat/completions}
@@ -71,8 +74,8 @@ lingolens:
 
       Rules:
       - word must remain a stable lowercase English object key when possible.
-      - displayWord, phonetic, partOfSpeech, and exampleSentence use the target language.
-      - translation, definition, and exampleTranslation use the source/native language.
+      - displayWord, phonetic, partOfSpeech, definition, and exampleSentence use the target language.
+      - translation and exampleTranslation use the source/native language.
       - If target language is English, phonetic must be standard IPA.
       - If target language is Chinese, phonetic must be pinyin with tone marks.
       - If target language is Japanese, phonetic must include kana plus romaji, for example "ボトル / botoru".

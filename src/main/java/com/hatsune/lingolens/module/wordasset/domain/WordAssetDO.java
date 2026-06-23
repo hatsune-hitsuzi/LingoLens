@@ -40,6 +40,9 @@ public class WordAssetDO {
     @TableField("asset_source")
     private String assetSource;
 
+    @TableField("enrichment_status")
+    private String enrichmentStatus;
+
     @TableField(value = "display_word", exist = false)
     private String displayWord;
 
