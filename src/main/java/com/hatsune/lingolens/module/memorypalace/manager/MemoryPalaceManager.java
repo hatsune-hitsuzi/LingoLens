@@ -469,10 +469,19 @@ public class MemoryPalaceManager {
             scheduleWordAssetWarmupAfterCommit(wordInfo.getWord());
             return request.getWordAssetId();
         }
-        LensWordInfoBO wordInfo = wordAssetManager.resolveWordFast(
+        LensWordInfoBO wordInfo = wordAssetManager.resolveCapturedWordFast(
                 request.getWord(),
                 preference.getSourceLanguage(),
-                preference.getTargetLanguage()
+                preference.getTargetLanguage(),
+                request.getDisplayLanguage(),
+                request.getDisplayWord(),
+                request.getPhonetic(),
+                request.getPartOfSpeech(),
+                request.getTranslationLanguage(),
+                request.getTranslation(),
+                request.getDefinition(),
+                request.getExampleSentence(),
+                request.getExampleTranslation()
         );
         request.setWordAssetId(wordInfo.getWordAssetId());
         scheduleWordAssetWarmupAfterCommit(wordInfo.getWord());

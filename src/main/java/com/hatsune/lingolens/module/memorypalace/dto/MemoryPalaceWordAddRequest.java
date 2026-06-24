@@ -55,6 +55,9 @@ public class MemoryPalaceWordAddRequest {
     @Size(max = 128)
     private String displayWord;
 
+    @Size(max = 16)
+    private String displayLanguage;
+
     /**
      * 音标。
      */
@@ -78,6 +81,9 @@ public class MemoryPalaceWordAddRequest {
      */
     @Size(max = 512)
     private String translation;
+
+    @Size(max = 16)
+    private String translationLanguage;
 
     /**
      * 英文释义。

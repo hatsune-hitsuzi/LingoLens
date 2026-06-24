@@ -161,6 +161,65 @@ public class WordAssetManager {
         return wordInfo;
     }
 
+    public LensWordInfoBO resolveCapturedWordFast(String word,
+                                                  String sourceLanguage,
+                                                  String targetLanguage,
+                                                  String displayLanguage,
+                                                  String displayWord,
+                                                  String phonetic,
+                                                  String partOfSpeech,
+                                                  String translationLanguage,
+                                                  String translation,
+                                                  String definition,
+                                                  String exampleSentence,
+                                                  String exampleTranslation) {
+        String wordKey = normalizeKey(word);
+        String normalizedSourceLanguage = normalizeLanguage(sourceLanguage, "zh-CN");
+        String normalizedTargetLanguage = normalizeLanguage(targetLanguage, "en");
+        String cacheKey = RedisKeyConstant.WORD_ASSET.key(normalizedSourceLanguage, normalizedTargetLanguage, wordKey);
+
+        LensWordInfoBO cachedWord = loadFromCache(cacheKey);
+        if (cachedWord != null && cachedWord.getWordAssetId() != null) {
+            return cachedWord;
+        }
+
+        WordAssetDO asset = findByWordKey(wordKey);
+        if (asset != null
+                && hasPayload(asset, normalizedSourceLanguage)
+                && hasPayload(asset, normalizedTargetLanguage)) {
+            LensWordInfoBO wordInfo = toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
+            writeCache(cacheKey, wordInfo);
+            return wordInfo;
+        }
+
+        LensWordInfoBO seedWord = wordAssetGenerator.generateFastSeed(
+                wordKey,
+                normalizedSourceLanguage,
+                normalizedTargetLanguage
+        );
+        JSONArray capturedPayloads = buildCapturedPayloads(
+                wordKey,
+                normalizedSourceLanguage,
+                normalizedTargetLanguage,
+                seedWord,
+                displayLanguage,
+                displayWord,
+                phonetic,
+                partOfSpeech,
+                translationLanguage,
+                translation,
+                definition,
+                exampleSentence,
+                exampleTranslation
+        );
+        asset = asset == null
+                ? insertGeneratedAsset(wordKey, capturedPayloads, ASSET_SOURCE_SEED)
+                : mergeGeneratedPayloads(asset, capturedPayloads);
+        LensWordInfoBO wordInfo = toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
+        writeCache(cacheKey, wordInfo);
+        return wordInfo;
+    }
+
     public LensWordInfoBO enrichWord(String word, String sourceLanguage, String targetLanguage) {
         String wordKey = normalizeKey(word);
         String normalizedSourceLanguage = normalizeLanguage(sourceLanguage, "zh-CN");
@@ -302,6 +361,29 @@ public class WordAssetManager {
         }
     }
 
+    private WordAssetDO insertGeneratedAsset(String wordKey,
+                                             JSONArray languagePayloads,
+                                             String assetSource) {
+        OffsetDateTime now = OffsetDateTime.now();
+        WordAssetDO asset = WordAssetDO.builder()
+                .id(distributedIdGenerator.id(WORD_ASSET_ID_BIZ_TYPE))
+                .wordKey(wordKey)
+                .canonicalWord(canonicalWordFromPayloads(wordKey, languagePayloads))
+                .languagePayloads(languagePayloads.toJSONString())
+                .assetSource(StringUtils.hasText(assetSource) ? assetSource : ASSET_SOURCE_SEED)
+                .enrichmentStatus(enrichmentStatusForAssetSource(assetSource))
+                .createTime(now)
+                .updateTime(now)
+                .build();
+        try {
+            wordAssetMapper.insert(asset);
+            return asset;
+        } catch (DuplicateKeyException e) {
+            WordAssetDO existed = findByWordKey(wordKey);
+            return existed == null ? asset : mergeGeneratedPayloads(existed, languagePayloads);
+        }
+    }
+
     private WordAssetDO insertGeneratedAsset(GeneratedWordAssetBO generated,
                                             String assetSource,
                                             String imageUrl) {
@@ -374,6 +456,29 @@ public class WordAssetManager {
         return asset;
     }
 
+    private WordAssetDO mergeGeneratedPayloads(WordAssetDO asset,
+                                              JSONArray generatedPayloads) {
+        JSONArray currentPayloads = parsePayloads(asset.getLanguagePayloads());
+        for (int i = 0; i < generatedPayloads.size(); i++) {
+            JSONObject payload = generatedPayloads.getJSONObject(i);
+            if (payload == null || !StringUtils.hasText(payload.getString("lang"))) {
+                continue;
+            }
+            if (findPayloadInArray(currentPayloads, payload.getString("lang")) == null) {
+                currentPayloads.add(payload);
+            }
+        }
+        asset.setLanguagePayloads(currentPayloads.toJSONString());
+        asset.setUpdateTime(OffsetDateTime.now());
+        wordAssetMapper.updateByPrimaryKey(WordAssetDO.builder()
+                .id(asset.getId())
+                .languagePayloads(asset.getLanguagePayloads())
+                .enrichmentStatus(asset.getEnrichmentStatus())
+                .updateTime(asset.getUpdateTime())
+                .build());
+        return asset;
+    }
+
     private JSONArray buildGeneratedPayloads(String wordKey,
                                              String sourceLanguage,
                                              String targetLanguage,
@@ -421,6 +526,65 @@ public class WordAssetManager {
             ));
         }
         return payloads;
+    }
+
+    private JSONArray buildCapturedPayloads(String wordKey,
+                                            String sourceLanguage,
+                                            String targetLanguage,
+                                            LensWordInfoBO seedWord,
+                                            String displayLanguage,
+                                            String displayWord,
+                                            String phonetic,
+                                            String partOfSpeech,
+                                            String translationLanguage,
+                                            String translation,
+                                            String definition,
+                                            String exampleSentence,
+                                            String exampleTranslation) {
+        JSONArray payloads = buildGeneratedPayloads(wordKey, sourceLanguage, targetLanguage, seedWord);
+        String displayLang = contentLanguage(defaultIfBlank(displayLanguage, targetLanguage));
+        if (StringUtils.hasText(displayWord)) {
+            upsertPayload(payloads, capturedPayload(
+                    payloads,
+                    displayLang,
+                    displayWord,
+                    phonetic,
+                    partOfSpeech,
+                    definition,
+                    exampleSentence
+            ));
+        }
+        String translationLang = contentLanguage(defaultIfBlank(translationLanguage, sourceLanguage));
+        if (StringUtils.hasText(translation)) {
+            upsertPayload(payloads, capturedPayload(
+                    payloads,
+                    translationLang,
+                    translation,
+                    "",
+                    "",
+                    "",
+                    exampleTranslation
+            ));
+        }
+        return payloads;
+    }
+
+    private JSONObject capturedPayload(JSONArray fallbackPayloads,
+                                       String lang,
+                                       String word,
+                                       String phonetic,
+                                       String pos,
+                                       String explanation,
+                                       String example) {
+        JSONObject fallback = findPayloadInArray(fallbackPayloads, lang);
+        return payload(
+                lang,
+                word,
+                defaultIfBlank(phonetic, fallback == null ? "" : fallback.getString("phonetic")),
+                defaultIfBlank(pos, fallback == null ? "" : fallback.getString("pos")),
+                defaultIfBlank(explanation, fallback == null ? "" : fallback.getString("explanation")),
+                defaultIfBlank(example, fallback == null ? "" : fallback.getString("example"))
+        );
     }
 
     private JSONObject payload(String lang,
@@ -495,16 +659,23 @@ public class WordAssetManager {
         return payloads.isEmpty() ? new JSONObject() : payloads.getJSONObject(0);
     }
 
-    private JSONObject findPayloadOrNull(WordAssetDO asset, String language) {
-        JSONArray payloads = parsePayloads(asset.getLanguagePayloads());
+    private JSONObject findPayloadInArray(JSONArray payloads, String language) {
+        if (payloads == null || payloads.isEmpty()) {
+            return null;
+        }
         String normalizedLanguage = contentLanguage(language);
         for (int i = 0; i < payloads.size(); i++) {
             JSONObject payload = payloads.getJSONObject(i);
-            if (normalizedLanguage.equals(contentLanguage(payload.getString("lang")))) {
+            if (payload != null && normalizedLanguage.equals(contentLanguage(payload.getString("lang")))) {
                 return payload;
             }
         }
         return null;
+    }
+
+    private JSONObject findPayloadOrNull(WordAssetDO asset, String language) {
+        JSONArray payloads = parsePayloads(asset.getLanguagePayloads());
+        return findPayloadInArray(payloads, language);
     }
 
     private void upsertPayload(JSONArray payloads, JSONObject newPayload) {
@@ -566,6 +737,14 @@ public class WordAssetManager {
         }
         if ("en".equals(contentLanguage(sourceLanguage)) && StringUtils.hasText(wordInfo.getTranslation())) {
             return wordInfo.getTranslation().trim();
+        }
+        return wordKey.replace('-', ' ');
+    }
+
+    private String canonicalWordFromPayloads(String wordKey, JSONArray languagePayloads) {
+        JSONObject englishPayload = findPayloadInArray(languagePayloads, "en");
+        if (englishPayload != null && StringUtils.hasText(englishPayload.getString("word"))) {
+            return englishPayload.getString("word").trim();
         }
         return wordKey.replace('-', ' ');
     }
