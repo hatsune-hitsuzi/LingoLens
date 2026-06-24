@@ -22,6 +22,12 @@ lingolens:
     enrichment-model: ${LINGOLENS_LLM_ENRICHMENT_MODEL:minimaxai/minimax-m3}
     enrichment-max-tokens: ${LINGOLENS_LLM_ENRICHMENT_MAX_TOKENS:2400}
     enrichment-temperature: ${LINGOLENS_LLM_ENRICHMENT_TEMPERATURE:0.1}
+    image-edit-invoke-url: ${LINGOLENS_LLM_IMAGE_EDIT_INVOKE_URL:}
+    image-edit-authorization: ${LINGOLENS_LLM_IMAGE_EDIT_AUTHORIZATION:}
+    image-edit-api-key: ${LINGOLENS_LLM_IMAGE_EDIT_API_KEY:}
+    image-edit-model: ${LINGOLENS_LLM_IMAGE_EDIT_MODEL:}
+    image-edit-timeout-seconds: ${LINGOLENS_LLM_IMAGE_EDIT_TIMEOUT_SECONDS:120}
+    image-edit-size: ${LINGOLENS_LLM_IMAGE_EDIT_SIZE:1024x1024}
     request-timeout-seconds: ${LINGOLENS_LLM_REQUEST_TIMEOUT_SECONDS:90}
     stream-timeout-seconds: ${LINGOLENS_LLM_STREAM_TIMEOUT_SECONDS:90}
     stream: false

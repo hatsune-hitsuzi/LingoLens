@@ -145,6 +145,19 @@ public interface MemoryPalaceWordMapper {
                      @Param("palaceWordId") Long palaceWordId,
                      @Param("targetPalaceId") Long targetPalaceId);
 
+    @Update("""
+            UPDATE memory_palace_words
+            SET source_image_url = #{newImageUrl},
+                update_time = now()
+            WHERE id = #{palaceWordId}
+              AND user_pk_id = #{userPkId}
+              AND source_image_url = #{expectedImageUrl}
+            """)
+    int updateSourceImageUrlIfCurrent(@Param("userPkId") Long userPkId,
+                                      @Param("palaceWordId") Long palaceWordId,
+                                      @Param("expectedImageUrl") String expectedImageUrl,
+                                      @Param("newImageUrl") String newImageUrl);
+
     @Select("""
             SELECT source_image_url
             FROM (

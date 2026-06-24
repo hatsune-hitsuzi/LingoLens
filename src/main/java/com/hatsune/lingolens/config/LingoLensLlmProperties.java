@@ -76,6 +76,18 @@ public class LingoLensLlmProperties {
 
     private double enrichmentTemperature = 0.1D;
 
+    private String imageEditInvokeUrl = "";
+
+    private String imageEditAuthorization = "";
+
+    private String imageEditApiKey = "";
+
+    private String imageEditModel = "";
+
+    private int imageEditTimeoutSeconds = 120;
+
+    private String imageEditSize = "1024x1024";
+
     public String endpoint() {
         return StringUtils.hasText(invokeUrl) ? invokeUrl.trim() : baseUrl.trim();
     }
@@ -134,6 +146,25 @@ public class LingoLensLlmProperties {
         return enabled
                 && StringUtils.hasText(enrichmentEndpoint())
                 && StringUtils.hasText(enrichmentAuthorizationHeader());
+    }
+
+    public String imageEditEndpoint() {
+        return StringUtils.hasText(imageEditInvokeUrl) ? imageEditInvokeUrl.trim() : "";
+    }
+
+    public String imageEditAuthorizationHeader() {
+        return authorizationHeader(imageEditAuthorization, imageEditApiKey);
+    }
+
+    public String imageEditModel() {
+        return StringUtils.hasText(imageEditModel) ? imageEditModel.trim() : "";
+    }
+
+    public boolean imageEditAvailable() {
+        return enabled
+                && StringUtils.hasText(imageEditEndpoint())
+                && StringUtils.hasText(imageEditAuthorizationHeader())
+                && StringUtils.hasText(imageEditModel());
     }
 
     private String endpoint(String profileInvokeUrl) {

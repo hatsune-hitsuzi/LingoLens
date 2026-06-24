@@ -102,6 +102,19 @@ public interface MemoryPalaceMapper {
                         @Param("sceneKey") String sceneKey,
                         @Param("sceneName") String sceneName);
 
+    @Update("""
+            UPDATE memory_palaces
+            SET cover_url = #{newCoverUrl},
+                update_time = now()
+            WHERE id = #{palaceId}
+              AND user_pk_id = #{userPkId}
+              AND cover_url = #{expectedCoverUrl}
+            """)
+    int updateCoverUrlIfCurrent(@Param("userPkId") Long userPkId,
+                                @Param("palaceId") Long palaceId,
+                                @Param("expectedCoverUrl") String expectedCoverUrl,
+                                @Param("newCoverUrl") String newCoverUrl);
+
     @Delete("""
             DELETE FROM memory_palaces
             WHERE id = #{palaceId}

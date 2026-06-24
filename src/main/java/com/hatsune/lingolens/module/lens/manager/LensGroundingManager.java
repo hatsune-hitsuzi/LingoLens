@@ -26,16 +26,19 @@ public class LensGroundingManager {
     private static final int MAX_NODES = 6;
 
     private static final String STREAM_SYSTEM_PROMPT = """
-            You are Gemma-3n-e2b-it working as a fast structured multimodal grounding gateway.
+            You are a fast structured multimodal grounding gateway.
 
             CRITICAL GOAL:
             Identify AT MOST 6 prominent, clear, distinct physical objects in the image.
             Stream results immediately. Output one complete JSON object per line as soon as each object is ready.
 
             Output schema for EACH LINE:
-            {"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"simplified-chinese-noun","ja":"japanese-noun"}}
+            {"x":47,"y":52,"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"simplified-chinese-noun","ja":"japanese-noun"}}
 
             Coordinate rules:
+            - x and y are the best bubble anchor for the VISIBLE OBJECT BODY, using normalized percentage coordinates from 0 to 100.
+            - x and y must be near the visual center of the object, not a polygon corner, not a label position, not a background point.
+            - The coordinate origin is the top-left corner of the full uploaded image. x grows to the right. y grows downward.
             - polygon MUST use normalized percentage coordinates from 0 to 100.
             - Do NOT output pixel coordinates such as 180, 560, or 720.
             - The frontend will render directly as left:X%, top:Y%.
@@ -55,17 +58,20 @@ public class LensGroundingManager {
             """;
 
     private static final String BATCH_SYSTEM_PROMPT = """
-            You are Gemma-3n-e2b-it working as a strict structured multimodal grounding gateway.
+            You are a strict structured multimodal grounding gateway.
             Identify AT MOST 6 prominent, clear, distinct physical objects in the image.
 
             Output raw JSON object only:
             {
               "nodes": [
-                {"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"simplified-chinese-noun","ja":"japanese-noun"}}
+                {"x":47,"y":52,"polygon":[[10,20],[35,18],[38,46],[12,48]],"labels":{"en":"figurine","zh":"simplified-chinese-noun","ja":"japanese-noun"}}
               ]
             }
 
             Rules:
+            - x and y are the best bubble anchor for the VISIBLE OBJECT BODY, using normalized percentage coordinates from 0 to 100.
+            - x and y must be near the visual center of the object, not a polygon corner, not a label position, not a background point.
+            - The coordinate origin is the top-left corner of the full uploaded image. x grows to the right. y grows downward.
             - polygon MUST use normalized percentage coordinates from 0 to 100.
             - Do NOT output id.
             - Do NOT output phonetics.
@@ -88,7 +94,9 @@ public class LensGroundingManager {
                 sourceLanguage, targetLanguage, StringUtils.hasText(imageReference));
         String userPrompt = """
                 Analyze this frozen camera frame now.
-                Return at most 6 prominent physical objects with percentage polygon and English/Chinese/Japanese labels.
+                Return at most 6 prominent physical objects with x/y bubble anchor, percentage polygon, and English/Chinese/Japanese labels.
+                x/y must mark the visible object's visual center in percentage coordinates.
+                Coordinates are relative to the full uploaded image: top-left is 0,0; bottom-right is 100,100.
                 Do not include id or phonetics.
 
                 REMINDER: Follow the System instructions.
@@ -125,7 +133,9 @@ public class LensGroundingManager {
         String userPrompt = """
                 Analyze this frozen camera frame now.
                 Output each object immediately as ONE JSON object per line.
+                Include x/y as the visible object's visual center for the bubble anchor.
                 Coordinates must be percentage values from 0 to 100, never pixels.
+                Coordinates are relative to the full uploaded image: top-left is 0,0; bottom-right is 100,100.
                 Output labels only; do not output id or phonetics.
 
                 REMINDER:
@@ -185,8 +195,11 @@ public class LensGroundingManager {
             log.debug("lens grounding node dropped, id={}, polygonSize={}", id, polygon.size());
             return null;
         }
+        AnchorPoint anchor = normalizeAnchor(item, polygon, imageWidth, imageHeight);
         return LensGroundingNodeDTO.builder()
                 .id(id)
+                .x(anchor.x())
+                .y(anchor.y())
                 .polygon(polygon)
                 .learningWord(languageValue(labels, targetLanguage, id))
                 .learningPhonetic(languageValue(phonetics, targetLanguage, ""))
@@ -266,6 +279,52 @@ public class LensGroundingManager {
         return points;
     }
 
+    private AnchorPoint normalizeAnchor(JSONObject item,
+                                        List<List<Double>> polygon,
+                                        Integer imageWidth,
+                                        Integer imageHeight) {
+        Double rawX = item.getDouble("x");
+        Double rawY = item.getDouble("y");
+        if (rawX != null && rawY != null
+                && Double.isFinite(rawX)
+                && Double.isFinite(rawY)) {
+            boolean normalizedUnit = Math.max(rawX, rawY) <= 1.5D;
+            boolean absolutePixels = rawX > 100D || rawY > 100D;
+            double x = rawX;
+            double y = rawY;
+            if (normalizedUnit) {
+                x *= 100D;
+                y *= 100D;
+            } else if (absolutePixels) {
+                x = rawX / safeDimension(imageWidth, rawX) * 100D;
+                y = rawY / safeDimension(imageHeight, rawY) * 100D;
+            }
+            return new AnchorPoint(clampPercent(x), clampPercent(y));
+        }
+        return polygonCentroid(polygon);
+    }
+
+    private AnchorPoint polygonCentroid(List<List<Double>> polygon) {
+        if (polygon == null || polygon.isEmpty()) {
+            return new AnchorPoint(50D, 50D);
+        }
+        double x = 0D;
+        double y = 0D;
+        int count = 0;
+        for (List<Double> point : polygon) {
+            if (point == null || point.size() < 2) {
+                continue;
+            }
+            x += point.get(0);
+            y += point.get(1);
+            count++;
+        }
+        if (count == 0) {
+            return new AnchorPoint(50D, 50D);
+        }
+        return new AnchorPoint(clampPercent(x / count), clampPercent(y / count));
+    }
+
     private double safeDimension(Integer dimension, double fallback) {
         if (dimension != null && dimension > 0) {
             return dimension;
@@ -307,5 +366,8 @@ public class LensGroundingManager {
             return "ja";
         }
         return "en";
+    }
+
+    private record AnchorPoint(double x, double y) {
     }
 }

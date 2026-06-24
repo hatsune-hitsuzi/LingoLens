@@ -12,6 +12,10 @@ public class LensGroundingNodeDTO {
 
     private String id;
 
+    private Double x;
+
+    private Double y;
+
     private List<List<Double>> polygon;
 
     private String learningWord;

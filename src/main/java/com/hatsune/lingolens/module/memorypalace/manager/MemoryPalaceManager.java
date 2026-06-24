@@ -54,6 +54,7 @@ public class MemoryPalaceManager {
     private final WordAssetWarmupManager wordAssetWarmupManager;
     private final UserPreferenceManager userPreferenceManager;
     private final SceneNameLocalizer sceneNameLocalizer;
+    private final MemoryPalaceImageEnhancementManager imageEnhancementManager;
 
     public MemoryPalaceWordAddBO addWord(Long userPkId, MemoryPalaceWordAddRequest request) {
         MemoryPalaceDO palace = getOrCreatePalace(userPkId, request);
@@ -72,6 +73,7 @@ public class MemoryPalaceManager {
                     .updateTime(OffsetDateTime.now())
                     .build());
             arScanWordManager.recordWord(userPkId, palace.getId(), palace.getSceneName(), wordAssetId, request);
+            scheduleImageEnhancementAfterCommit(userPkId, palace.getId(), existedWord.getId(), request);
             return MemoryPalaceWordAddBO.builder()
                     .palaceId(palace.getId())
                     .palaceWordId(existedWord.getId())
@@ -98,6 +100,7 @@ public class MemoryPalaceManager {
             updatePalaceWordCount(palace.getId(), newCount, request.getSourceImageUrl());
             arScanWordManager.recordWord(
                     userPkId, palace.getId(), palace.getSceneName(), wordAssetId, request);
+            scheduleImageEnhancementAfterCommit(userPkId, palace.getId(), latestWord.getId(), request);
             return MemoryPalaceWordAddBO.builder()
                     .palaceId(palace.getId())
                     .palaceWordId(latestWord.getId())
@@ -130,6 +133,7 @@ public class MemoryPalaceManager {
                 .updateTime(now)
                 .build());
 
+        scheduleImageEnhancementAfterCommit(userPkId, palace.getId(), palaceWordId, request);
         return MemoryPalaceWordAddBO.builder()
                 .palaceId(palace.getId())
                 .palaceWordId(palaceWordId)
@@ -488,6 +492,39 @@ public class MemoryPalaceManager {
             @Override
             public void afterCommit() {
                 warmupTask.run();
+            }
+        });
+    }
+
+    private void scheduleImageEnhancementAfterCommit(Long userPkId,
+                                                     Long palaceId,
+                                                     Long palaceWordId,
+                                                     MemoryPalaceWordAddRequest request) {
+        if (!StringUtils.hasText(request.getSourceImageUrl())) {
+            return;
+        }
+        String targetWord = StringUtils.hasText(request.getDisplayWord())
+                ? request.getDisplayWord()
+                : request.getWord();
+        if (!StringUtils.hasText(targetWord)) {
+            return;
+        }
+        Runnable task = () -> imageEnhancementManager.enhanceAfterAdd(
+                userPkId,
+                palaceId,
+                palaceWordId,
+                request.getSourceImageUrl(),
+                targetWord,
+                request.getXPercent(),
+                request.getYPercent());
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
             }
         });
     }

@@ -25,4 +25,15 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean("memoryPalaceImageExecutor")
+    public Executor memoryPalaceImageExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(64);
+        executor.setThreadNamePrefix("palace-image-edit-");
+        executor.initialize();
+        return executor;
+    }
 }
