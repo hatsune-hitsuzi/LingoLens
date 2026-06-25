@@ -2,6 +2,23 @@ lingolens:
   word-asset:
     repair-delay-ms: ${LINGOLENS_WORD_ASSET_REPAIR_DELAY_MS:180000}
     repair-initial-delay-ms: ${LINGOLENS_WORD_ASSET_REPAIR_INITIAL_DELAY_MS:90000}
+    defaults:
+      phonetic:
+        en: ""
+        zh: ""
+        ja: ""
+      pos:
+        en: "n."
+        zh: "名词"
+        ja: "名詞"
+      definition:
+        en: "Vocabulary details are being prepared."
+        zh: "词条释义正在生成中。"
+        ja: "語彙の説明を準備しています。"
+      example:
+        en: ""
+        zh: ""
+        ja: ""
   llm:
     enabled: ${LINGOLENS_LLM_ENABLED:false}
     invoke-url: ${LINGOLENS_LLM_INVOKE_URL:https://integrate.api.nvidia.com/v1/chat/completions}

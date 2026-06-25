@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.hatsune.lingolens.common.redis.RedisKeyConstant;
+import com.hatsune.lingolens.config.WordAssetDefaultsProperties;
 import com.hatsune.lingolens.infrastructure.id.DistributedIdGenerator;
 import com.hatsune.lingolens.module.lens.bo.LensWordInfoBO;
 import com.hatsune.lingolens.module.lens.dto.LensWordDetailRequest;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -47,6 +49,7 @@ public class WordAssetManager {
     private final DistributedIdGenerator distributedIdGenerator;
     private final WordAssetGenerator wordAssetGenerator;
     private final PronunciationUrlBuilder pronunciationUrlBuilder;
+    private final WordAssetDefaultsProperties wordAssetDefaultsProperties;
 
     public LensWordInfoBO resolveWord(LensWordDetailRequest request) {
         String wordKey = normalizeKey(request.getWord());
@@ -63,7 +66,7 @@ public class WordAssetManager {
         if (asset == null) {
             LensWordInfoBO generatedWord = wordAssetGenerator.generate(wordKey, sourceLanguage, targetLanguage);
             asset = insertGeneratedAsset(wordKey, sourceLanguage, targetLanguage, generatedWord, ASSET_SOURCE_LLM);
-        } else if (!hasPayload(asset, sourceLanguage) || !hasPayload(asset, targetLanguage)) {
+        } else if (shouldEnrichAsset(asset, sourceLanguage, targetLanguage)) {
             LensWordInfoBO generatedWord = wordAssetGenerator.generate(wordKey, sourceLanguage, targetLanguage);
             mergeGeneratedPayloads(asset, sourceLanguage, targetLanguage, generatedWord);
         }
@@ -110,7 +113,7 @@ public class WordAssetManager {
         if (asset == null) {
             return null;
         }
-        if (!hasPayload(asset, normalizedSourceLanguage) || !hasPayload(asset, normalizedTargetLanguage)) {
+        if (shouldEnrichAsset(asset, normalizedSourceLanguage, normalizedTargetLanguage)) {
             LensWordInfoBO generatedWord = wordAssetGenerator.generate(
                     asset.getWordKey(),
                     normalizedSourceLanguage,
@@ -142,7 +145,9 @@ public class WordAssetManager {
         }
 
         WordAssetDO asset = findByWordKey(wordKey);
-        if (asset != null && hasPayload(asset, normalizedTargetLanguage)) {
+        if (asset != null
+                && hasPayload(asset, normalizedTargetLanguage)
+                && isCleanPayload(findPayloadOrNull(asset, normalizedTargetLanguage), asset.getWordKey())) {
             LensWordInfoBO wordInfo = toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
             writeCache(cacheKey, wordInfo);
             return wordInfo;
@@ -186,7 +191,9 @@ public class WordAssetManager {
         WordAssetDO asset = findByWordKey(wordKey);
         if (asset != null
                 && hasPayload(asset, normalizedSourceLanguage)
-                && hasPayload(asset, normalizedTargetLanguage)) {
+                && hasPayload(asset, normalizedTargetLanguage)
+                && isCleanPayload(findPayloadOrNull(asset, normalizedSourceLanguage), wordKey)
+                && isCleanPayload(findPayloadOrNull(asset, normalizedTargetLanguage), wordKey)) {
             LensWordInfoBO wordInfo = toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
             writeCache(cacheKey, wordInfo);
             return wordInfo;
@@ -250,7 +257,11 @@ public class WordAssetManager {
             }
             mergeGeneratedPayloads(asset, normalizedSourceLanguage, normalizedTargetLanguage, generatedWord);
         }
-        markAssetEnrichmentStatus(asset, ENRICHMENT_STATUS_ENRICHED);
+        if (isCompleteCleanAsset(asset)) {
+            markAssetEnrichmentStatus(asset, ENRICHMENT_STATUS_ENRICHED);
+        } else {
+            markAssetEnrichmentStatus(asset, ENRICHMENT_STATUS_PENDING);
+        }
 
         LensWordInfoBO wordInfo = toWordInfo(asset, normalizedSourceLanguage, normalizedTargetLanguage);
         String cacheKey = RedisKeyConstant.WORD_ASSET.key(normalizedSourceLanguage, normalizedTargetLanguage, wordKey);
@@ -274,15 +285,18 @@ public class WordAssetManager {
         if (asset == null) {
             return false;
         }
-        return ENRICHMENT_STATUS_ENRICHED.equals(asset.getEnrichmentStatus())
+        return isCompleteCleanAsset(asset)
+                && (ENRICHMENT_STATUS_ENRICHED.equals(asset.getEnrichmentStatus())
                 || ASSET_SOURCE_LLM.equals(asset.getAssetSource())
-                || ASSET_SOURCE_LLM_IMAGE.equals(asset.getAssetSource());
+                || ASSET_SOURCE_LLM_IMAGE.equals(asset.getAssetSource()));
     }
 
     private boolean shouldEnrichAsset(WordAssetDO asset, String sourceLanguage, String targetLanguage) {
         return ASSET_SOURCE_SEED.equals(asset.getAssetSource())
                 || !hasPayload(asset, sourceLanguage)
-                || !hasPayload(asset, targetLanguage);
+                || !hasPayload(asset, targetLanguage)
+                || !isCleanPayload(findPayloadOrNull(asset, sourceLanguage), asset.getWordKey())
+                || !isCleanPayload(findPayloadOrNull(asset, targetLanguage), asset.getWordKey());
     }
 
     private void markAssetSource(WordAssetDO asset, String assetSource) {
@@ -320,7 +334,12 @@ public class WordAssetManager {
             return null;
         }
         try {
-            return JSON.parseObject(cachedJson, LensWordInfoBO.class);
+            LensWordInfoBO cachedWord = JSON.parseObject(cachedJson, LensWordInfoBO.class);
+            if (isDirtyWordInfo(cachedWord)) {
+                stringRedisTemplate.delete(cacheKey);
+                return null;
+            }
+            return cachedWord;
         } catch (Exception e) {
             log.warn("word asset cache parse failed, cacheKey={}", cacheKey, e);
             stringRedisTemplate.delete(cacheKey);
@@ -487,7 +506,7 @@ public class WordAssetManager {
         String targetLang = contentLanguage(targetLanguage);
         payloads.add(payload(
                 targetLang,
-                defaultIfBlank(wordInfo.getDisplayWord(), wordKey),
+                payloadWord(defaultIfBlank(wordInfo.getDisplayWord(), wordKey), targetLang, wordKey),
                 wordInfo.getPhonetic(),
                 wordInfo.getPartOfSpeech(),
                 wordInfo.getDefinition(),
@@ -497,10 +516,10 @@ public class WordAssetManager {
         if (!sourceLang.equals(targetLang)) {
             payloads.add(payload(
                     sourceLang,
-                    defaultIfBlank(wordInfo.getTranslation(), wordKey),
+                    payloadWord(wordInfo.getTranslation(), sourceLang, wordKey),
                     "",
                     "",
-                    wordInfo.getTranslation(),
+                    "",
                     wordInfo.getExampleTranslation()
             ));
         }
@@ -604,37 +623,63 @@ public class WordAssetManager {
         return payload;
     }
 
+    private String payloadWord(String word, String language, String wordKey) {
+        if (!StringUtils.hasText(word)) {
+            return "";
+        }
+        return isDirtyText(word, wordKey, language) ? "" : word.trim();
+    }
+
     private LensWordInfoBO toWordInfo(WordAssetDO asset, String sourceLanguage, String targetLanguage) {
         String targetLang = contentLanguage(targetLanguage);
         String sourceLang = contentLanguage(sourceLanguage);
         JSONObject targetPayload = findPayload(asset, targetLang);
-        JSONObject sourcePayload = findPayload(asset, sourceLang);
-        String displayWord = targetPayload.getString("word");
+        JSONObject sourcePayload = findPayloadOrNull(asset, sourceLang);
+        if (sourcePayload == null) {
+            sourcePayload = new JSONObject();
+        }
+        String displayWord = defaultIfBlank(targetPayload.getString("word"), asset.getCanonicalWord());
+        displayWord = defaultIfBlank(displayWord, asset.getWordKey());
         String pronunciationBaseUrl = pronunciationUrlBuilder.baseUrl();
         String pronunciationPath = defaultIfBlank(
                 targetPayload.getString("pronunciationPath"),
                 pronunciationUrlBuilder.buildPath(displayWord, targetLang)
         );
-        String pos = targetPayload.getString("pos");
-        String explanation = targetPayload.getString("explanation");
-        String example = targetPayload.getString("example");
+        String pos = defaultIfBlank(targetPayload.getString("pos"), wordAssetDefaultsProperties.pos(targetLang));
+        String explanation = defaultIfBlank(
+                cleanDirtyText(targetPayload.getString("explanation")),
+                wordAssetDefaultsProperties.definition(targetLang)
+        );
+        String example = defaultIfBlank(
+                cleanDirtyText(targetPayload.getString("example")),
+                wordAssetDefaultsProperties.example(targetLang)
+        );
+        String phonetic = defaultIfBlank(
+                targetPayload.getString("phonetic"),
+                wordAssetDefaultsProperties.phonetic(targetLang)
+        );
+        String translation = defaultIfBlank(sourcePayload.getString("word"), "");
+        String exampleTranslation = defaultIfBlank(
+                cleanDirtyText(sourcePayload.getString("example")),
+                wordAssetDefaultsProperties.example(sourceLang)
+        );
         return LensWordInfoBO.builder()
                 .wordAssetId(asset.getId())
                 .lang(targetLang)
                 .word(asset.getWordKey())
                 .displayWord(displayWord)
-                .phonetic(targetPayload.getString("phonetic"))
+                .phonetic(phonetic)
                 .pronunciationBaseUrl(pronunciationBaseUrl)
                 .pronunciationPath(pronunciationPath)
                 .pronunciationUrl(pronunciationUrlBuilder.buildFromPath(pronunciationBaseUrl, pronunciationPath))
                 .pos(pos)
                 .partOfSpeech(pos)
                 .explanation(explanation)
-                .translation(sourcePayload.getString("word"))
+                .translation(translation)
                 .definition(explanation)
                 .example(example)
                 .exampleSentence(example)
-                .exampleTranslation(sourcePayload.getString("example"))
+                .exampleTranslation(exampleTranslation)
                 .assetImageUrl(asset.getAssetImageUrl())
                 .build();
     }
@@ -676,6 +721,93 @@ public class WordAssetManager {
     private JSONObject findPayloadOrNull(WordAssetDO asset, String language) {
         JSONArray payloads = parsePayloads(asset.getLanguagePayloads());
         return findPayloadInArray(payloads, language);
+    }
+
+    private boolean isCompleteCleanAsset(WordAssetDO asset) {
+        if (asset == null) {
+            return false;
+        }
+        for (String language : List.of("en", "zh", "ja")) {
+            if (!isCleanPayload(findPayloadOrNull(asset, language), asset.getWordKey())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isCleanPayload(JSONObject payload, String wordKey) {
+        if (payload == null || !StringUtils.hasText(payload.getString("word"))) {
+            return false;
+        }
+        if (!StringUtils.hasText(payload.getString("explanation"))
+                || !StringUtils.hasText(payload.getString("example"))) {
+            return false;
+        }
+        String language = contentLanguage(payload.getString("lang"));
+        String word = payload.getString("word");
+        if (isDirtyText(word, wordKey, language)) {
+            return false;
+        }
+        return !isDirtyText(payload.getString("explanation"), wordKey, language)
+                && !isDirtyText(payload.getString("example"), wordKey, language);
+    }
+
+    private boolean isDirtyWordInfo(LensWordInfoBO wordInfo) {
+        if (wordInfo == null) {
+            return true;
+        }
+        String wordKey = wordInfo.getWord();
+        return isDirtyText(wordInfo.getDisplayWord(), wordKey, wordInfo.getLang())
+                || isDirtyText(wordInfo.getTranslation(), wordKey, "")
+                || isDirtyText(wordInfo.getDefinition(), wordKey, wordInfo.getLang())
+                || isDirtyText(wordInfo.getExampleSentence(), wordKey, wordInfo.getLang())
+                || isDirtyText(wordInfo.getExampleTranslation(), wordKey, "");
+    }
+
+    private String cleanDirtyText(String value) {
+        return isDirtyText(value, "", "") ? "" : value;
+    }
+
+    private boolean isDirtyText(String value, String wordKey, String language) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        String text = value.trim();
+        String lower = text.toLowerCase(Locale.ROOT);
+        String normalizedWordKey = normalizeLoose(wordKey);
+        if ((lower.contains("i noticed the ") || lower.contains("i notice the "))
+                && lower.contains(" in the scene")) {
+            return true;
+        }
+        if (lower.contains("captured spatial anchor")) {
+            return true;
+        }
+        if ((text.contains("\u3053\u306e\u753b\u9762\u3067")
+                || text.contains("\u3053\u306e\u5834\u9762\u3067"))
+                && text.contains("\u3092\u898b\u3064\u3051\u305f")) {
+            return true;
+        }
+        if (text.contains("\u8fd9\u4e2a\u573a\u666f") && text.contains("\u6ce8\u610f\u5230")) {
+            return true;
+        }
+        if (text.contains("\uFFFD")) {
+            return true;
+        }
+        String normalizedText = normalizeLoose(text);
+        if (!normalizedWordKey.isEmpty() && normalizedWordKey.equals(normalizedText)) {
+            String lang = contentLanguage(language);
+            return "zh".equals(lang) || "ja".equals(lang);
+        }
+        return false;
+    }
+
+    private String normalizeLoose(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return value.trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "");
     }
 
     private void upsertPayload(JSONArray payloads, JSONObject newPayload) {

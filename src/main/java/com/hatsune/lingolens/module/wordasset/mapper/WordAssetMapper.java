@@ -61,7 +61,38 @@ public interface WordAssetMapper {
     @Select("""
             SELECT *
             FROM word_assets
-            WHERE COALESCE(enrichment_status, 'pending') <> 'enriched'
+            WHERE (
+                COALESCE(enrichment_status, 'pending') <> 'enriched'
+                OR language_payloads ILIKE '%I noticed the % in the scene%'
+                OR language_payloads ILIKE '%I notice the % in the scene%'
+                OR language_payloads ILIKE '%Captured spatial anchor%'
+                OR language_payloads LIKE '%この画面で%を見つけた%'
+                OR language_payloads LIKE '%この場面で%を見つけた%'
+                OR language_payloads LIKE '%这个场景%注意到%'
+                OR language_payloads LIKE '%�%'
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(language_payloads::jsonb) AS payload(value)
+                    WHERE payload.value ->> 'lang' = 'en'
+                )
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(language_payloads::jsonb) AS payload(value)
+                    WHERE payload.value ->> 'lang' IN ('zh', 'zh-CN')
+                )
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(language_payloads::jsonb) AS payload(value)
+                    WHERE payload.value ->> 'lang' = 'ja'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(language_payloads::jsonb) AS payload(value)
+                    WHERE payload.value ->> 'lang' IN ('zh', 'zh-CN', 'ja')
+                      AND regexp_replace(lower(COALESCE(payload.value ->> 'word', '')), '[^a-z0-9]+', '', 'g')
+                          = regexp_replace(lower(word_key), '[^a-z0-9]+', '', 'g')
+                )
+            )
               AND update_time < NOW() - (#{minAgeMinutes} * INTERVAL '1 minute')
             ORDER BY update_time ASC
             LIMIT #{limit}

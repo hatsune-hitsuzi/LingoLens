@@ -238,17 +238,15 @@ public class WordAssetGenerator {
 
     private LensWordInfoBO fallbackWord(String wordKey, String sourceLanguage, String targetLanguage) {
         String displayWord = toDisplayWord(wordKey);
-        String targetKey = languageKey(targetLanguage);
-        String sourceKey = languageKey(sourceLanguage);
         return LensWordInfoBO.builder()
                 .word(wordKey)
                 .displayWord(displayWord)
-                .phonetic(defaultPhonetic(targetKey, displayWord))
-                .partOfSpeech(partOfSpeechFor(targetKey))
-                .translation(displayWord)
-                .definition(defaultDefinition(targetKey))
-                .exampleSentence(defaultExample(targetKey, wordKey, displayWord))
-                .exampleTranslation(defaultExample(sourceKey, wordKey, displayWord))
+                .phonetic("")
+                .partOfSpeech("")
+                .translation("")
+                .definition("")
+                .exampleSentence("")
+                .exampleTranslation("")
                 .build();
     }
 
@@ -275,14 +273,12 @@ public class WordAssetGenerator {
             return LensWordInfoBO.builder()
                     .word(defaultText(generated.getString("word"), wordKey))
                     .displayWord(defaultText(generated.getString("displayWord"), toDisplayWord(wordKey)))
-                    .phonetic(defaultText(generated.getString("phonetic"), defaultPhonetic(languageKey(targetLanguage), toDisplayWord(wordKey))))
-                    .partOfSpeech(defaultText(generated.getString("partOfSpeech"), partOfSpeechFor(languageKey(targetLanguage))))
-                    .translation(defaultText(generated.getString("translation"), toDisplayWord(wordKey)))
-                    .definition(defaultText(generated.getString("definition"), defaultDefinition(languageKey(sourceLanguage))))
-                    .exampleSentence(defaultText(generated.getString("exampleSentence"),
-                            defaultExample(languageKey(targetLanguage), wordKey, toDisplayWord(wordKey))))
-                    .exampleTranslation(defaultText(generated.getString("exampleTranslation"),
-                            defaultExample(languageKey(sourceLanguage), wordKey, toDisplayWord(wordKey))))
+                    .phonetic(defaultText(generated.getString("phonetic"), ""))
+                    .partOfSpeech(defaultText(generated.getString("partOfSpeech"), ""))
+                    .translation(defaultText(generated.getString("translation"), ""))
+                    .definition(defaultText(generated.getString("definition"), ""))
+                    .exampleSentence(defaultText(generated.getString("exampleSentence"), ""))
+                    .exampleTranslation(defaultText(generated.getString("exampleTranslation"), ""))
                     .build();
         } catch (Exception e) {
             log.warn("word asset llm generation failed, wordKey={}", wordKey, e);
@@ -310,7 +306,7 @@ public class WordAssetGenerator {
                     .lang(contentLanguage(language.getCode()))
                     .word(item.getString("word").trim())
                     .phonetic(firstText(item, "phonetic", "pronunciation"))
-                    .pos(defaultText(firstText(item, "pos", "partOfSpeech", "part_of_speech"), partOfSpeechFor(contentLanguage(language.getCode()))))
+                    .pos(defaultText(firstText(item, "pos", "partOfSpeech", "part_of_speech"), ""))
                     .explanation(firstText(item, "explanation", "definition", "translation"))
                     .example(firstText(item, "example", "exampleSentence", "example_sentence"))
                     .build());
@@ -417,37 +413,6 @@ public class WordAssetGenerator {
             return word;
         }
         return word.substring(0, 1).toUpperCase(Locale.ROOT) + word.substring(1);
-    }
-
-    private String defaultPhonetic(String languageKey, String displayWord) {
-        if ("ja".equals(languageKey)) {
-            return "[" + displayWord.toLowerCase(Locale.ROOT) + "]";
-        }
-        return "[" + displayWord + "]";
-    }
-
-    private String partOfSpeechFor(String languageKey) {
-        return switch (languageKey) {
-            case "zh-CN" -> "名词";
-            case "ja" -> "名詞";
-            default -> "n.";
-        };
-    }
-
-    private String defaultDefinition(String languageKey) {
-        return switch (languageKey) {
-            case "zh-CN" -> "从扫描场景中识别出的可见物品。";
-            case "ja" -> "スキャンした場面から認識された身近な物。";
-            default -> "A visible object identified from the scanned scene.";
-        };
-    }
-
-    private String defaultExample(String languageKey, String wordKey, String displayWord) {
-        return switch (languageKey) {
-            case "zh-CN" -> "我在这个场景里注意到了" + displayWord + "。";
-            case "ja" -> "この場面で" + displayWord + "を見つけた。";
-            default -> "I noticed the " + wordKey + " in the scene.";
-        };
     }
 
     private static LocalizedSeed seed(String wordKey, LocalizedText english, LocalizedText chinese, LocalizedText japanese) {
