@@ -39,4 +39,9 @@ public class OssUploadCommand {
      * 文件 Base64 内容。
      */
     private String base64Content;
+
+    /**
+     * 是否需要对外公开读取。
+     */
+    private Boolean publicRead;
 }

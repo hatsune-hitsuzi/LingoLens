@@ -1,0 +1,3 @@
+-- Historical one-off migration kept for compatibility with older deployment notes.
+-- Romaji now lives in word_assets.language_payloads[*].phonetic where lang = 'ja'.
+-- No operation is required for the JSON word asset schema.

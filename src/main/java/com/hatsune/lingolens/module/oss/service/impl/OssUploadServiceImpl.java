@@ -55,6 +55,24 @@ public class OssUploadServiceImpl implements OssUploadService {
         }
     }
 
+    @Override
+    public OssUploadResponse uploadPublicImage(@RequestBody String requestJson) {
+        log.info("oss public image upload request, requestJson={}", commonTools.maskSensitiveJson(requestJson, "fileBase64"));
+        try {
+            OssUploadRequest request = commonTools.parseJson(requestJson, OssUploadRequest.class);
+            commonTools.validateByJsr303(request);
+            commonTools.validateUploadRequest(request);
+            String url = ossManager.uploadPublicImage(request);
+            return buildSuccessResponse(url);
+        } catch (BizException | IllegalArgumentException e) {
+            log.warn("oss public image upload failed, reason={}", e.getMessage());
+            return buildFailResponse(e.getMessage());
+        } catch (Exception e) {
+            log.error("oss public image upload failed by system error", e);
+            return buildFailResponse("system busy, please try again later");
+        }
+    }
+
     private Long resolveOwnerId() {
         String token = resolveToken();
         if (!StringUtils.hasText(token)) {
